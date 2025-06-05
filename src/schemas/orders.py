@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import List
+from pydantic import BaseModel, HttpUrl
+from typing import List, Optional
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
@@ -22,6 +22,9 @@ class OrderResponseSchema(BaseModel):
     status: OrderStatusEnum
     total_amount: Decimal
     items: List[OrderItemSchema]
+    payment_url: Optional[HttpUrl]
 
     class Config:
         orm_mode = True
+
+
