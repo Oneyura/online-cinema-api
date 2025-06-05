@@ -119,11 +119,7 @@ fabric.properties
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -137,7 +133,6 @@ parts/
 sdist/
 var/
 wheels/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -285,3 +280,42 @@ poetry.toml
 
 # LSP config files
 pyrightconfig.json
+
+# Virtual Environment
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*.bak
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
+# Logs
+*.log
+
+# Media
+media/
+uploads/
+
+# Local development
+*.sqlite3
+*.db
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
