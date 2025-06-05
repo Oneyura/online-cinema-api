@@ -1,4 +1,5 @@
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from src.main import app
 
@@ -12,7 +13,7 @@ def client() -> TestClient:
 
 
 @pytest.fixture
-def test_app():
+def test_app() -> FastAPI:
     """
     Create a test instance of the FastAPI application.
     """

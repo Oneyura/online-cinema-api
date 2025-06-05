@@ -1,4 +1,4 @@
-from celery import Celery
+from celery import Celery  # type: ignore
 from celery.schedules import crontab  # type: ignore
 
 # Initialize Celery
