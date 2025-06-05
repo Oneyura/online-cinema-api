@@ -1,4 +1,4 @@
-from src.tasks import send_email_notification, cleanup_old_files
+from src.tasks import cleanup_old_files, send_email_notification
 
 
 def test_send_email_notification() -> None:

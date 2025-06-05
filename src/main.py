@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-
 app = FastAPI(
     title="Online Cinema API",
     description="API for online cinema service",
