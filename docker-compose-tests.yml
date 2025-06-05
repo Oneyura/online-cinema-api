@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  web:
+    container_name: backend_cinema_test
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - PYTHONPATH=/usr/src/app
+      - EMAIL_HOST=mailhog_cinema_test
+      - EMAIL_PORT=1025
+      - EMAIL_USERNAME=test
+      - EMAIL_PASSWORD=test
+      - EMAIL_FROM=test@test.com
+      - EMAIL_FROM_NAME=Test
+      - MINIO_HOST=minio-cinema-test
+      - MINIO_PORT=9000
+      - MINIO_STORAGE=cinema-storage
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./src:/usr/src/app/src
+    command: ["/bin/bash", "/commands/run_tests.sh"]
+    depends_on:
+      - mailhog
+      - minio
+      - redis
+    networks:
+      - cinema_network_test
+
+  redis:
+    image: 'redis:7-alpine'
+    container_name: redis_cinema_test
+    ports:
+      - "6379:6379"
+    networks:
+      - cinema_network_test
+
+  celery_worker_test:
+    build: .
+    container_name: celery_worker_cinema_test
+    command: ["celery", "-A", "src.worker.celery", "worker", "--loglevel=info"]
+    environment:
+      - PYTHONPATH=/usr/src/app
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./src:/usr/src/app/src
+    depends_on:
+      - redis
+    networks:
+      - cinema_network_test
+
+  mailhog:
+    container_name: mailhog_cinema_test
+    image: mailhog/mailhog:latest
+    ports:
+      - "8025:8025"
+    networks:
+      - cinema_network_test
+
+  minio:
+    container_name: minio-cinema-test
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+      - MINIO_HOST=minio-cinema-test
+      - MINIO_PORT=9000
+      - MINIO_STORAGE=cinema-storage
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+    volumes:
+      - minio_test_data:/data
+    networks:
+      - cinema_network_test
+
+  minio_mc:
+    container_name: minio_mc_cinema_test
+    build:
+      context: .
+      dockerfile: docker/minio_mc/Dockerfile
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+      - MINIO_HOST=minio-cinema-test
+      - MINIO_PORT=9000
+      - MINIO_STORAGE=cinema-storage
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+    networks:
+      - cinema_network_test
+
+volumes:
+  minio_test_data:
+    driver: local
+
+networks:
+  cinema_network_test:
+    driver: bridge
