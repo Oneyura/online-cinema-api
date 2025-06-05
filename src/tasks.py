@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from .worker import celery
 
 @celery.task
-def check_expired_sessions():
+def check_expired_sessions() -> str:
     """
     Checks and deletes expired user sessions.
     """
@@ -11,7 +11,7 @@ def check_expired_sessions():
     return "Sessions checked and cleaned up"
 
 @celery.task
-def cleanup_old_files():
+def cleanup_old_files() -> str:
     """
     Delete old temporary files.
     Basic system maintenance task.
@@ -20,7 +20,7 @@ def cleanup_old_files():
     return "Old files cleaned up"
 
 @celery.task
-def process_video(video_id: int):
+def process_video(video_id: int) -> str:
     """
     Video processing after upload.
     """
@@ -28,7 +28,7 @@ def process_video(video_id: int):
     return f"Video {video_id} processed successfully"
 
 @celery.task
-def send_email_notification(user_id: int, subject: str, message: str):
+def send_email_notification(user_id: int, subject: str, message: str) -> str:
     """
     Send email notifications to users.
     Used for registration confirmation and password reset.
@@ -37,7 +37,7 @@ def send_email_notification(user_id: int, subject: str, message: str):
     return f"Email sent to user {user_id}"
 
 @celery.task
-def generate_user_report(user_id: int, report_type: str):
+def generate_user_report(user_id: int, report_type: str) -> str:
     """
     Generate a report on user activity.
     """

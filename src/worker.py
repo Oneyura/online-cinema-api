@@ -1,5 +1,5 @@
-from celery import Celery
-from celery.schedules import crontab
+from celery import Celery  # type: ignore
+from celery.schedules import crontab  # type: ignore
 
 celery = Celery(
     "cinema",
