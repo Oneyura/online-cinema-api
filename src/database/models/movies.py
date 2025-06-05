@@ -1,17 +1,21 @@
-import datetime
-from enum import Enum
 from typing import Optional, List
 from uuid import UUID
 
-from sqlalchemy import String, Float, Text, DECIMAL, UniqueConstraint, Date, ForeignKey, Table, Column
-from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped, relationship
-from sqlalchemy import Enum as SQLAlchemyEnum
+from sqlalchemy import (
+    String,
+    Float,
+    Text,
+    DECIMAL,
+    UniqueConstraint,
+    ForeignKey,
+    Table,
+    Column
+)
+from sqlalchemy.orm import mapped_column, Mapped, relationship
 
-
-class Base(DeclarativeBase):
-    @classmethod
-    def default_order_by(cls):
-        return None
+from src.database.models.accounts import CommentModel, MovieLikeModel, MovieRatingModel, FavoriteMovieModel, \
+    PurchaseModel
+from src.database.models.base import Base
 
 MoviesGenresModel = Table(
     "movies_genres",
@@ -35,15 +39,15 @@ MoviesDirectorsModel = Table(
         ForeignKey("directors.id", ondelete="CASCADE"), primary_key=True, nullable=False),
 )
 
-MoviesActorsModel = Table( # Updated table name
-    "movies_actors", # Updated table name for clarity
+MoviesActorsModel = Table(
+    "movies_actors",
     Base.metadata,
     Column(
         "movie_id",
         ForeignKey("movies.id", ondelete="CASCADE"), primary_key=True, nullable=False),
     Column(
         "actor_id", # Updated column name to actor_id
-        ForeignKey("actors.id", ondelete="CASCADE"), primary_key=True, nullable=False), # Updated ForeignKey to actors.id
+        ForeignKey("actors.id", ondelete="CASCADE"), primary_key=True, nullable=False),
 )
 
 
@@ -64,7 +68,7 @@ class GenreModel(Base):
 
 
 class ActorModel(Base): # Updated class name
-    __tablename__ = "actors" # Updated table name
+    __tablename__ = "actors"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
@@ -76,7 +80,7 @@ class ActorModel(Base): # Updated class name
     )
 
     def __repr__(self) -> str:
-        return f"<Actor(id='{self.id}', name='{self.name}')>" # Updated repr
+        return f"<Actor(id='{self.id}', name='{self.name}')>"
 
 
 class DirectorModel(Base):
@@ -121,12 +125,31 @@ class MovieModel(Base):
     gross: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     price: Mapped[float] = mapped_column(DECIMAL(10, 2), nullable=False)
+    comments: Mapped[List["CommentModel"]] = relationship(
+        "CommentModel",
+        back_populates="movie"
+    )
+    movie_likes: Mapped[List["MovieLikeModel"]] = relationship(
+        "MovieLikeModel",
+        back_populates="movie"
+    )
+    movie_ratings: Mapped[List["MovieRatingModel"]] = relationship(
+        "MovieRatingModel",
+        back_populates="movie"
+    )
+    favorite_movies: Mapped[List["FavoriteMovieModel"]] = relationship(
+        "FavoriteMovieModel",
+        back_populates="movie"
+    )
+    purchases: Mapped[List["PurchaseModel"]] = relationship(
+        "PurchaseModel",
+        back_populates="movie"
+    )
     certification_id: Mapped[int] = mapped_column(
         ForeignKey("certifications.id"),
         nullable=False,
     )
 
-    # Relationships
     certification: Mapped["CertificationModel"] = relationship(
         "CertificationModel",
         back_populates="movies"
