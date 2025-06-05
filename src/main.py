@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict
+
 
 app = FastAPI(
     title="Online Cinema API",
@@ -11,6 +11,7 @@ app = FastAPI(
     openapi_url="/api/openapi.json"
 )
 
+
 # CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
@@ -20,11 +21,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Health check endpoint
 @app.get("/health")
-async def health_check() -> Dict[str, str]:
+async def health_check() -> dict[str, str]:
     """
-    Simple health check endpoint for monitoring and Docker healthcheck.
+    Health check endpoint.
     """
     return {"status": "healthy"}
-
