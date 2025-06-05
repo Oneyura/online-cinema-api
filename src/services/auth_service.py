@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models.accounts import UserModel
+from src.database.models.accounts import UserModel, ActivationTokenModel
 from src.schemas.auth import UserRegistrationSchema
 from src.database.validators import accounts as validators
 
@@ -17,6 +17,11 @@ class AuthService:
         )
 
         session.add(user)
+        await session.flush()
+
+        activation_token = ActivationTokenModel(user_id=user.id)
+        session.add(activation_token)
+
         await session.commit()
         await session.refresh(user)
 
