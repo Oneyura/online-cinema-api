@@ -1,8 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# from database.models.accounts import UserModel
+from src.database.models.accounts import UserModel
 from src.schemas.auth import UserRegistrationSchema
-# from src.database.validators import accounts as validators
+from src.database.validators import accounts as validators
 
 
 class AuthService:
