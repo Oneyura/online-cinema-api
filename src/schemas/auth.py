@@ -1,25 +1,70 @@
-from pydantic import BaseModel, EmailStr, constr, Field
+from pydantic import BaseModel, EmailStr, field_validator
 
+from src.database.validators import accounts as accounts_validators
 
-class UserRegistrationSchema(BaseModel):
-    email: EmailStr
-    password: constr(min_length=8, max_length=128) = Field(..., description="Strong password")
-
-    class Config:
-        schema_extra = {
-            "example": {
-                "email": "user@example.com",
-                "password": "VerySecret123!"
-            }
-        }
-
-
-class UserLoginSchema(BaseModel):
+class BaseEmailPasswordSchema(BaseModel):
     email: EmailStr
     password: str
 
+    model_config = {
+        "from_attributes": True
+    }
 
-class TokenResponseSchema(BaseModel):
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value):
+        return value.lower()
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value):
+        return accounts_validators.validate_password_strength(value)
+
+
+class UserRegistrationRequestSchema(BaseEmailPasswordSchema):
+    pass
+
+
+class PasswordResetRequestSchema(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetCompleteRequestSchema(BaseEmailPasswordSchema):
+    token: str
+
+
+class UserLoginRequestSchema(BaseEmailPasswordSchema):
+    pass
+
+
+class UserLoginResponseSchema(BaseModel):
     access_token: str
     refresh_token: str
+    token_type: str = "bearer"
+
+
+class UserRegistrationResponseSchema(BaseModel):
+    id: int
+    email: EmailStr
+
+    model_config = {
+        "from_attributes": True
+    }
+
+
+class UserActivationRequestSchema(BaseModel):
+    email: EmailStr
+    token: str
+
+
+class MessageResponseSchema(BaseModel):
+    message: str
+
+
+class TokenRefreshRequestSchema(BaseModel):
+    refresh_token: str
+
+
+class TokenRefreshResponseSchema(BaseModel):
+    access_token: str
     token_type: str = "bearer"
