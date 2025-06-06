@@ -1,6 +1,5 @@
 import pytest
-import asyncio
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch, Mock
 from datetime import datetime, timezone, timedelta
 
 from src.services.auth_service import AuthService
@@ -63,7 +62,7 @@ async def test_resend_activation_email_success_with_old_token(mock_send_email):
 
     # Мокаем методы delete, add, commit
     db.delete = AsyncMock()
-    db.add = AsyncMock()
+    db.add = Mock()
     db.commit = AsyncMock()
 
     service = AuthService(db)
@@ -94,7 +93,7 @@ async def test_resend_activation_email_success_without_old_token(mock_send_email
     db.scalar.side_effect = [user, None]
 
     db.delete = AsyncMock()
-    db.add = AsyncMock()
+    db.add = Mock()
     db.commit = AsyncMock()
 
     service = AuthService(db)
