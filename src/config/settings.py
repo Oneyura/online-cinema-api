@@ -52,7 +52,7 @@ class Settings(BaseAppSettings):
         )
 
     class Config:
-        env_file = (".env", ".env.local")
+        env_file = (".env.prod", ".env", ".env.local")
         extra = "allow"
 
 
