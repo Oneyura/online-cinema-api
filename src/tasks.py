@@ -1,10 +1,29 @@
+from datetime import datetime, timezone
+
 from celery import Celery  # type: ignore
+
+from src.database.models.accounts import ActivationTokenModel
+from src.database.session import AsyncSessionLocal
 
 celery = Celery(
     "tasks",
     broker="redis://redis:6379/0",
     backend="redis://redis:6379/0",
 )
+
+@celery.task
+async def delete_expired_activation_tokens() -> str:
+    """
+    Periodic task to delete expired activation tokens.
+    """
+    async with AsyncSessionLocal() as session:
+        now = datetime.now(timezone.utc)
+        result = await session.execute(
+            ActivationTokenModel.__table__.delete().where(ActivationTokenModel.expires_at < now)
+        )
+        await session.commit()
+        deleted_count = result.rowcount or 0
+    return f"Deleted {deleted_count} expired activation tokens"
 
 
 @celery.task
@@ -19,9 +38,12 @@ def check_expired_sessions() -> str:
 @celery.task
 def send_email_notification(user_id: int, subject: str, message: str) -> str:
     """
-    Send email notification to user.
+    Отправка email уведомления пользователю.
     """
-    # TODO: Implement actual email sending logic
+    # Здесь нужно реализовать вызов EmailSender (через DI или импорт)
+    # Пример заглушки:
+    print(f"Sending email to user {user_id}: {subject} - {message}")
+    # TODO: Реализовать реальную отправку через EmailSender
     return f"Email sent to user {user_id}"
 
 

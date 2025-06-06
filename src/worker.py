@@ -28,5 +28,12 @@ celery.conf.beat_schedule = {
     },
 }
 
+celery.conf.beat_schedule = {
+    "delete-expired-activation-tokens": {
+        "task": "src.tasks.delete_expired_activation_tokens",
+        "schedule": crontab(minute=0, hour="*/1"),  # Every hour
+    },
+}
+
 if __name__ == "__main__":
     celery.start()

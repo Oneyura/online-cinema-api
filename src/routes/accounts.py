@@ -26,9 +26,10 @@ from src.schemas.auth import (
     UserLoginResponseSchema,
     UserLoginRequestSchema,
     TokenRefreshRequestSchema,
-    TokenRefreshResponseSchema
+    TokenRefreshResponseSchema, ResendActivationRequestSchema
 )
 from src.security.interfaces import JWTAuthManagerInterface
+from src.services.auth_service import AuthService
 
 router = APIRouter()
 
@@ -577,3 +578,60 @@ async def refresh_access_token(
     new_access_token = jwt_manager.create_access_token({"user_id": user_id})
 
     return TokenRefreshResponseSchema(access_token=new_access_token)
+
+@router.post(
+    "/resend-activation/",
+    response_model=MessageResponseSchema,
+    summary="Resend Activation Email",
+    description="Send a new activation link to the user's email if the account is not activated.",
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {
+            "description": "Activation email sent or user already activated.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "If the email is registered and not activated, an activation link has been sent."
+                    }
+                }
+            },
+        },
+        422: {
+            "description": "Validation Error - Invalid email format.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": [
+                            {
+                                "loc": ["body", "email"],
+                                "msg": "value is not a valid email address",
+                                "type": "value_error.email"
+                            }
+                        ]
+                    }
+                }
+            },
+        },
+    },
+)
+async def resend_activation_email(
+    data: ResendActivationRequestSchema,
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponseSchema:
+    """
+    Endpoint to resend the activation email to a user.
+
+    If the user with the provided email exists and is not activated,
+    a new activation token is generated and an activation email is sent.
+    The response is neutral to avoid disclosing whether the email is registered.
+
+    Args:
+        data (ResendActivationRequestSchema): Contains the user's email.
+        db (AsyncSession): The asynchronous database session.
+
+    Returns:
+        MessageResponseSchema: A message indicating that the activation email has been sent.
+    """
+    service = AuthService(db)
+    result = await service.resend_activation_email(data.email)
+    return MessageResponseSchema(**result)
