@@ -40,6 +40,7 @@ class Settings(BaseAppSettings):
     POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", 5433))
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "cinema_db")
     DB_ECHO_LOG: bool = os.getenv("DB_ECHO_LOG", "true").lower() == "true"
+    COOKIE: bool = False # DEVELOP -> False. PROD -> True
 
     @property
     def database_url(self) -> str:

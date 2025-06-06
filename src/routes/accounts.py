@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 from typing import cast
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, Response
+from fastapi.params import Cookie
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,7 @@ from src.database.models.accounts import (
     PasswordResetTokenModel,
     RefreshTokenModel
 )
+from src.database.session import get_async_session
 from src.exceptions.security import BaseSecurityError
 from src.schemas.auth import (
     UserRegistrationRequestSchema,
@@ -635,3 +637,32 @@ async def resend_activation_email(
     service = AuthService(db)
     result = await service.resend_activation_email(data.email)
     return MessageResponseSchema(**result)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_user(
+        response: Response,
+        refresh_token: str | None = Cookie(default=None),
+        db: AsyncSession = Depends(get_async_session)
+):
+    if refresh_token is None:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    result = await db.execute(
+        select(RefreshTokenModel).where(RefreshTokenModel.token == refresh_token)
+    )
+    token_obj = result.scalars().first()
+
+    if token_obj:
+        await db.delete(token_obj)
+        await db.commit()
+
+    response.delete_cookie(
+        key="refresh_token",
+        path="/",
+        httponly=True,
+        secure=True,
+        samesite="lax",
+    )
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
