@@ -9,8 +9,8 @@ settings = get_settings()
 
 # Create async engine
 engine = create_async_engine(
-    settings.POSTGRES_DATABASE_URL,  # type: ignore
-    echo=settings.DEBUG,  # type: ignore
+    settings.database_url,  # type: ignore
+    echo=settings.DB_ECHO_LOG,  # type: ignore
     future=True,
 )
 

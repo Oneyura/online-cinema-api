@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 
@@ -26,8 +27,9 @@ class BaseAppSettings(BaseSettings):
     def MINIO_ENDPOINT(self) -> str:
         return f"http://{self.MINIO_HOST}:{self.MINIO_PORT}"
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(
+        extra="allow"
+    )
 
 
 class Settings(BaseAppSettings):
@@ -51,9 +53,10 @@ class Settings(BaseAppSettings):
             f"{self.POSTGRES_DB}"
         )
 
-    class Config:
-        env_file = (".env.prod", ".env", ".env.local")
-        extra = "allow"
+    model_config = ConfigDict(
+        env_file=(".env.prod", ".env", ".env.local"),
+        extra="allow"
+    )
 
 
 class TestSettings(BaseAppSettings):
@@ -77,8 +80,9 @@ class TestSettings(BaseAppSettings):
             f"{self.POSTGRES_DB}"
         )
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(
+        extra="allow"
+    )
 
 
 # Create settings instance based on environment
