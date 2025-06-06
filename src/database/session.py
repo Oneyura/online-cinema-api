@@ -5,7 +5,6 @@ from sqlalchemy.orm import sessionmaker
 
 from src.config.dependencies import get_settings
 
-
 settings = get_settings()
 
 # Create async engine
