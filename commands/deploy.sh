@@ -11,6 +11,13 @@ handle_error() {
     exit 1
 }
 
+clean_git_locks() {
+    echo "🔓 Cleaning Git locks..."
+    rm -f "$APP_DIR/.git/index.lock" || true
+    rm -f "$APP_DIR/.git/refs/remotes/origin/*.lock" || true
+    rm -f "$APP_DIR/.git/HEAD.lock" || true
+}
+
 echo "🚀 Starting deployment process..."
 
 if [ ! -d "$APP_DIR" ]; then
@@ -19,6 +26,7 @@ if [ ! -d "$APP_DIR" ]; then
 else
     echo "🔄 Updating existing repository..."
     cd "$APP_DIR" || handle_error "Failed to enter app directory"
+    clean_git_locks
     git fetch origin $BRANCH || handle_error "Failed to fetch"
     git reset --hard origin/$BRANCH || handle_error "Failed to reset"
 fi
