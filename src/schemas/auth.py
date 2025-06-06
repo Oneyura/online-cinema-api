@@ -6,12 +6,7 @@ class UserRegistrationSchema(BaseModel):
     password: constr(min_length=8, max_length=128) = Field(..., description="Strong password")
 
     class Config:
-        schema_extra = {
-            "example": {
-                "email": "user@example.com",
-                "password": "VerySecret123!"
-            }
-        }
+        schema_extra = {"example": {"email": "user@example.com", "password": "VerySecret123!"}}
 
 
 class UserLoginSchema(BaseModel):

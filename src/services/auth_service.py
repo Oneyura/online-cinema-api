@@ -1,8 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models.accounts import UserModel, ActivationTokenModel
-from src.schemas.auth import UserRegistrationSchema
+from src.database.models.accounts import ActivationTokenModel, UserModel
 from src.database.validators import accounts as validators
+from src.schemas.auth import UserRegistrationSchema
 
 
 class AuthService:
@@ -10,11 +10,7 @@ class AuthService:
     async def register_user(data: UserRegistrationSchema, session: AsyncSession) -> UserModel:
         validators.validate_email(data.email)
 
-        user = UserModel.create(
-            email=data.email,
-            raw_password=data.password,
-            group_id=1
-        )
+        user = UserModel.create(email=data.email, raw_password=data.password, group_id=1)
 
         session.add(user)
         await session.flush()
