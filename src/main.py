@@ -17,8 +17,8 @@ app = FastAPI(
 # CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=json.loads(os.getenv("CORS_ORIGINS", '["https://fast-furious.work.gd"]')),
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
