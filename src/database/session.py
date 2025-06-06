@@ -5,7 +5,6 @@ from sqlalchemy.orm import sessionmaker
 
 from src.config.dependencies import get_settings
 
-
 settings = get_settings()
 
 # Create async engine
@@ -27,7 +26,4 @@ AsyncSessionLocal = sessionmaker[AsyncSession](  # type: ignore
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
     """Get async database session."""
     async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
+        yield session

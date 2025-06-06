@@ -1,3 +1,6 @@
+import json
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -14,7 +17,7 @@ app = FastAPI(
 # CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=json.loads(os.getenv("CORS_ORIGINS", '["https://fast-furious.work.gd"]')),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
