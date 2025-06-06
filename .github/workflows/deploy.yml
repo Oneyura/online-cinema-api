@@ -27,6 +27,19 @@ jobs:
         run: |
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Initialize Git repository on EC2
+        run: |
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} '
+            if [ ! -d "/home/ubuntu/online-cinema-api/.git" ]; then
+              rm -rf /home/ubuntu/online-cinema-api
+              git clone https://github.com/${{ github.repository }}.git /home/ubuntu/online-cinema-api
+            else
+              cd /home/ubuntu/online-cinema-api
+              git fetch origin
+              git reset --hard origin/develop
+            fi
+          '
+
       - name: Check and create directories on EC2
         run: |
           ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
@@ -55,4 +68,4 @@ jobs:
       - name: Execute Deployment Script on EC2
         run: |
           ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
-            'bash -s' < ./commands/deploy.sh
+            'cd /home/ubuntu/online-cinema-api && bash ./commands/deploy.sh'
