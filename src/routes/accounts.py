@@ -8,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from src.config.dependencies import  get_settings, BaseAppSettings, get_db, get_jwt_auth_manager
+from src.config.settings import settings
 from src.database.models.accounts import (
     UserModel,
     UserGroupModel,
@@ -639,7 +640,18 @@ async def resend_activation_email(
     return MessageResponseSchema(**result)
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="User Logout",
+    description=(
+        "Logs out the user by deleting the refresh"
+        " token from the database and clearing the refresh token cookie.\n\n"
+        "If the refresh token cookie is missing, the endpoint returns"
+        " 204 No Content assuming the user is already logged out.\n\n"
+        "If an error occurs during token deletion, the endpoint"
+        " still returns a successful response to avoid breaking the logout flow."
+    ),
+    tags=["Authentication"],)
 async def logout_user(
         response: Response,
         refresh_token: str | None = Cookie(default=None),
@@ -661,7 +673,7 @@ async def logout_user(
         key="refresh_token",
         path="/",
         httponly=True,
-        secure=True,
+        secure=settings.COOKIE,
         samesite="lax",
     )
 
