@@ -233,6 +233,7 @@ celerybeat.pid
 
 # Environments
 .env
+.env.prod
 .venv
 env/
 venv/
@@ -319,3 +320,6 @@ docker-compose.override.yml
 # Celery
 celerybeat-schedule
 celerybeat.pid
+
+# Authentication
+nginx/auth/.htpasswd
