@@ -15,8 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Install test dependencies
 RUN pip install --no-cache-dir pytest pytest-asyncio pytest-cov
 
-# Copy application code
-COPY . .
+# Copy source code
+COPY src/ ./src/
+COPY alembic.ini .
 
 # Set Python path
 ENV PYTHONPATH=/app
