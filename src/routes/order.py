@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import get_jwt_auth_manager
+from config.dependencies import get_jwt_auth_manager
 from config.dependencies import get_db
 from database.models.accounts import UserModel, UserGroupModel, UserGroupEnum
 from database.models.cart import CartModel, CartItemModel
@@ -82,7 +82,7 @@ async def create_order(
     stmt_paid = select(OrderItem.movie_id).join(Order).where(
         and_(
             Order.user_id == user_id,
-            Order.status == OrderStatusEnum.paid,
+            Order.status == OrderStatusEnum.COMPLETED,
             OrderItem.movie_id.in_(available_movie_ids)
         )
     )
@@ -92,7 +92,7 @@ async def create_order(
     stmt_pending = select(OrderItem.movie_id).join(Order).where(
         and_(
             Order.user_id == user_id,
-            Order.status == OrderStatusEnum.pending,
+            Order.status == OrderStatusEnum.PENDING,
             OrderItem.movie_id.in_(available_movie_ids)
         )
     )
@@ -104,7 +104,7 @@ async def create_order(
         raise HTTPException(status_code=400, detail="All movies already purchased or pending")
 
     total = sum(m.price for m in filtered_movies)
-    order = Order(user_id=user.id, status=OrderStatusEnum.pending, total_amount=Decimal(total))
+    order = Order(user_id=user.id, status=OrderStatusEnum.PENDING, total_amount=Decimal(total))
     db.add(order)
     await db.flush()
 
