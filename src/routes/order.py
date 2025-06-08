@@ -9,12 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config.dependencies import get_jwt_auth_manager
 from config.dependencies import get_db
 from database.models.accounts import UserModel, UserGroupModel, UserGroupEnum
-from database.models.cart import CartModel, CartItemModel
+from database.models.carts import CartModel, CartItemModel
 from database.models.movies import MovieModel
 from database.models.orders import Order, OrderItem, OrderStatusEnum
 from schemas.orders import OrderResponseSchema, OrderItemSchema
 from security.http import get_token
 from security.interfaces import JWTAuthManagerInterface
+from services.payments_services import create_checkout_session_service
 
 #I just assume these will exist in the future. In case they won't, i'll rewrite the routes
 
@@ -113,8 +114,8 @@ async def create_order(
     await db.commit()
     await db.refresh(order)
 
-    # After order creation, trigger a background task or external service
-    # to generate a payment session
+    #creates checkout session
+    checkout_link = create_checkout_session_service(order, user)
 
     return OrderResponseSchema(
         id=order.id,
@@ -127,6 +128,6 @@ async def create_order(
                 price_at_order=item.price_at_order
             ) for item in items
         ],
-        payment_url=cast(HttpUrl, f"https://fake-stripe.com/pay?order_id={order.id}"),
+        payment_url=cast(HttpUrl, checkout_link.url),
     )
 
