@@ -1,8 +1,7 @@
-import json
-import os
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from src.routes.cart import router as cart_router
 
 app = FastAPI(
     title="Online Cinema API",
@@ -24,10 +23,5 @@ app.add_middleware(
 )
 
 
-# Health check endpoint
-@app.get("/health")
-async def health_check() -> dict[str, str]:
-    """
-    Health check endpoint.
-    """
-    return {"status": "healthy"}
+# Include routers
+app.include_router(cart_router, prefix="/api")
