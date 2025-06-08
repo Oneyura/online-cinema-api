@@ -43,11 +43,25 @@ services:
       timeout: 5s
       retries: 5
 
-  celery:
+  celery_worker:
     build:
       context: .
       dockerfile: Dockerfile
-    command: celery -A src.tasks.celery worker --loglevel=info
+    command: celery -A src.worker.celery worker --loglevel=info
+    restart: always
+    env_file:
+      - .env.prod
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - cinema_network
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A src.worker.celery beat --loglevel=info
     restart: always
     env_file:
       - .env.prod
@@ -61,13 +75,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: celery -A src.tasks.celery flower --port=5555
+    command: celery -A src.worker.celery flower --port=5555
     restart: always
     env_file:
       - .env.prod
     depends_on:
       - redis
-      - celery
+      - celery_worker
     networks:
       - cinema_network
 
@@ -86,30 +100,37 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+
+  minio_mc:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    env_file:
+      - .env.prod
+    entrypoint: >
+      /bin/sh -c "
+      mc config host add myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      mc mb --ignore-existing myminio/${MINIO_BUCKET};
+      mc policy set public myminio/${MINIO_BUCKET};
+      exit 0;
+      "
+    networks:
+      - cinema_network
 
   mailhog:
-    build:
-      context: .
-      dockerfile: docker/mailhog/Dockerfile
+    image: druidfi/mailhog:1.0.1
     restart: always
     ports:
       - "127.0.0.1:8025:8025"
       - "127.0.0.1:1025:1025"
-    environment:
-      - MAILHOG_USER=${MAILHOG_USER}
-      - MAILHOG_PASSWORD=${MAILHOG_PASSWORD}
-    volumes:
-      - mailhog_data:/mailhog.auth
+    networks:
+      - cinema_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8025/api/v2/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8025/api/v2/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-    networks:
-      - cinema_network
 
   nginx:
     image: nginx:1.25-alpine
@@ -123,6 +144,9 @@ services:
       - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - web
+      - flower
+      - minio
+      - mailhog
     networks:
       - cinema_network
 
