@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import List, Optional, Literal
 from uuid import UUID
 
@@ -117,7 +117,7 @@ class MovieCreate(BaseModel):
         description="List of Star (Actor) IDs associated with the movie"
     )
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True) #
 
 class MovieUpdate(MovieCreate):
     uuid: Optional[UUID] = None
@@ -182,6 +182,80 @@ class MovieResponse(MovieCreate):
 
     model_config = ConfigDict(from_attributes=True)
 
+# Виправлено: Залишено тільки одне оголошення CommentCreate
+class CommentCreate(BaseModel):
+    text: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        example="This movie was fantastic!"
+    )
+
+# Виправлено: UserResponseNested має успадковувати від BaseModel
+class UserResponseNested(BaseModel):
+    id: int # Додайте поля, які ви очікуєте від UserResponseNested
+    username: str # Наприклад, id та username
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CommentResponse(BaseModel):
+    id: int
+    user_id: int
+    movie_id: int
+    text: str
+    created_at: datetime
+    user: UserResponseNested # Тепер UserResponseNested є правильною Pydantic моделлю
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MovieLikeCreate(BaseModel):
+    is_liked: bool = Field(
+        ...,
+        description="True for like, False for dislike",
+        example=True
+    )
+
+class MovieLikeResponse(BaseModel):
+    id: int
+    user_id: int
+    movie_id: int
+    is_liked: bool
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MovieRatingCreate(BaseModel):
+    rating: int = Field(
+        ...,
+        ge=1,
+        le=10,
+        description="Rating on a 1-10 scale",
+        example=9
+    )
+
+class MovieRatingResponse(BaseModel):
+    id: int
+    user_id: int
+    movie_id: int
+    rating: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FavoriteMovieCreate(BaseModel):
+    pass
+
+class FavoriteMovieResponse(BaseModel):
+    id: int
+    user_id: int
+    movie_id: int
+    added_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 MovieResponseNested.model_rebuild()
 GenreResponse.model_rebuild()
@@ -189,3 +263,7 @@ ActorResponse.model_rebuild()
 DirectorResponse.model_rebuild()
 CertificationResponse.model_rebuild()
 MovieResponse.model_rebuild()
+CommentResponse.model_rebuild()
+MovieLikeResponse.model_rebuild()
+MovieRatingResponse.model_rebuild()
+FavoriteMovieResponse.model_rebuild()

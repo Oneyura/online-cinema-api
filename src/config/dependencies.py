@@ -12,6 +12,13 @@ from src.storages.interfaces import S3StorageInterface
 from src.storages.s3 import S3StorageClient
 
 
+def get_current_user():
+    pass
+
+def get_current_moderator():
+    pass
+
+
 def get_settings() -> BaseAppSettings:
     """Get application settings based on the current environment."""
     environment = os.getenv("ENVIRONMENT", "developing")
