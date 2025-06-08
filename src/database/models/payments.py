@@ -1,6 +1,7 @@
 from datetime import datetime
 import enum
 from decimal import Decimal
+from typing import List
 
 from src.database.base import Base
 
@@ -55,6 +56,9 @@ class Payments(Base):
     status: Mapped[PaymentStatus] = mapped_column(Enum(PaymentStatus))
     amount: Mapped[float] = mapped_column(Decimal(10, 2), nullable=False)
     external_payment_id: Mapped[str] = mapped_column(String, nullable=True)
+    order: Mapped["Order"] = relationship("Order", back_populates="payments")
+    payment_items: Mapped[List["PaymentsItem"]] = relationship("PaymentsItem", back_populates="payment", cascade="all, delete-orphan")
+    user: Mapped["UserModel"] = relationship("User", back_populates="payments")
 
 
 class PaymentsItem(Base):
@@ -78,3 +82,5 @@ class PaymentsItem(Base):
         default="order_items.price_at_order",
         nullable=False
     )
+    payment: Mapped["Payments"] = relationship("Payments", back_populates="payment_items")
+    order_items: Mapped["OrderItem"] = relationship("OrderItem", back_populates="payment_item")
