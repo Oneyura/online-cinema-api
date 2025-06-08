@@ -7,7 +7,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import get_jwt_auth_manager
-from database import get_db
+from config.dependencies import get_db
 from database.models.accounts import UserModel, UserGroupModel, UserGroupEnum
 from database.models.cart import CartModel, CartItemModel
 from database.models.movies import MovieModel
