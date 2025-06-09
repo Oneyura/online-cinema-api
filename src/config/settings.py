@@ -31,6 +31,7 @@ class BaseAppSettings(BaseSettings):
     SECRET_KEY_ACCESS: str = os.getenv("SECRET_KEY_ACCESS", "your-secret-key-access")
     SECRET_KEY_REFRESH: str = os.getenv("SECRET_KEY_REFRESH", "your-secret-key-refresh")
     JWT_SIGNING_ALGORITHM: str = os.getenv("JWT_SIGNING_ALGORITHM", "HS256")
+    LOGIN_TIME_DAYS: int = int(os.getenv("LOGIN_TIME_DAYS", 7))
 
     @property
     def MINIO_ENDPOINT(self) -> str:
