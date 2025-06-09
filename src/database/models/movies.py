@@ -135,6 +135,10 @@ class MovieModel(Base):
     actors: Mapped[List["ActorModel"]] = relationship(
         "ActorModel", secondary=MoviesActorsModel, back_populates="movies"
     )
+    order_items: Mapped[List["OrderItem"]] = relationship(
+        "OrderItem",
+        back_populates="movie"
+    )
 
     __table_args__ = (UniqueConstraint("name", "year", "time", name="unique_name_year_time_constraint"),)
 

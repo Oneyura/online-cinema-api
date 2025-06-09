@@ -7,6 +7,7 @@ from datetime import datetime
 
 from sqlalchemy.orm.attributes import Mapped
 
+from src.database.models.payments import PaymentsItemModel
 from src.database.models.base import Base
 
 
@@ -25,7 +26,7 @@ class Order(Base):
     status = Column(Enum(OrderStatusEnum), nullable=False)
     total_amount = Column(Numeric(10, 2))
 
-    payments: Mapped[List["Payments"]] = relationship("Payments", back_populates="order")
+    payments: Mapped[List["PaymentsModel"]] = relationship("PaymentsModel", back_populates="order")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
 
 
@@ -38,5 +39,5 @@ class OrderItem(Base):
     price_at_order = Column(Numeric(10, 2), nullable=False)
 
     order = relationship("Order", back_populates="items")
-    movie = relationship("Movie", back_populates="order_items")
-    payments_items: Mapped[List["PaymentsItem"]] = relationship("PaymentsItem", back_populates="order_item")
+    movie: Mapped["MovieModel"] = relationship("MovieModel", back_populates="order_items")
+    payments_items: Mapped[List["PaymentsItemModel"]] = relationship("PaymentsItemModel", back_populates="order_item")
