@@ -17,7 +17,6 @@ from security.http import get_token
 from security.interfaces import JWTAuthManagerInterface
 from services.payments_services import create_checkout_session_service
 
-#I just assume these will exist in the future. In case they won't, i'll rewrite the routes
 
 router = APIRouter()
 
