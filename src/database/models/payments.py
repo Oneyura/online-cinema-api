@@ -54,7 +54,7 @@ class Payments(Base):
         nullable=False
     )
     status: Mapped[PaymentStatus] = mapped_column(Enum(PaymentStatus))
-    amount: Mapped[float] = mapped_column(Decimal(10, 2), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Decimal(10, 2), nullable=False)
     external_payment_id: Mapped[str] = mapped_column(String, nullable=True)
     order: Mapped["Order"] = relationship("Order", back_populates="payments")
     payment_items: Mapped[List["PaymentsItem"]] = relationship("PaymentsItem", back_populates="payment", cascade="all, delete-orphan")
