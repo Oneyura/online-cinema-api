@@ -4,17 +4,14 @@ from typing import AsyncGenerator
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from security.interfaces import JWTAuthManagerInterface
-from security.token_manager import JWTAuthManager
-from src.config.settings import BaseAppSettings, Settings, TestSettings
 from src.config.settings import BaseAppSettings, Settings, TestSettings, ProductionSettings
 from src.database.session import get_async_session
 from src.notifications.emails import EmailSender
 from src.notifications.interfaces import EmailSenderInterface
+from src.security.interfaces import JWTAuthManagerInterface
 from src.security.token_manager import JWTAuthManager
 from src.storages.interfaces import S3StorageInterface
 from src.storages.s3 import S3StorageClient
-from src.security.interfaces import JWTAuthManagerInterface
 
 
 def get_settings() -> BaseAppSettings:
@@ -28,7 +25,6 @@ def get_settings() -> BaseAppSettings:
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    from src.database.session import get_async_session
     async with get_async_session() as session:
         yield session
 
