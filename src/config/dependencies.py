@@ -4,7 +4,7 @@ from typing import AsyncGenerator
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config.settings import BaseAppSettings, Settings, TestSettings
+from src.config.settings import BaseAppSettings, Settings, TestSettings, ProductionSettings
 from src.database.session import get_async_session
 from src.notifications.emails import EmailSender
 from src.notifications.interfaces import EmailSenderInterface
@@ -17,6 +17,8 @@ def get_settings() -> BaseAppSettings:
     environment = os.getenv("ENVIRONMENT", "developing")
     if environment == "testing":
         return TestSettings()
+    elif environment == "production":
+        return ProductionSettings()
     return Settings()
 
 
