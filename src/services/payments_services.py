@@ -1,6 +1,6 @@
 from decimal import Decimal
 from http.client import HTTPException
-
+from fastapi import Request
 from sqlalchemy.orm import Session
 
 from database.models import UserModel
@@ -76,12 +76,16 @@ def create_checkout_session_service(order: Order, user: UserModel):
         for item in order.items.all()  # or `order.items`, if not relationship
     ]
 
+    base_url = "http://domen.com/api"  # e.g. http://localhost:8000
+    success_url = f"{base_url}/payment/success/?order_id={order.id}"
+    cancel_url = f"{base_url}/payment/cancel/?order_id={order.id}"
+
     session = stripe.checkout.Session.create(
         payment_method_types=["card"],
         line_items=line_items,
         mode="payment",
-        success_url="https://domen.com/success/",  # TODO: in settings
-        cancel_url="https://domen.com/cancel/",
+        success_url=success_url,
+        cancel_url=cancel_url,
         metadata={
             "user_id": user.id,
             "order_id": order.id,

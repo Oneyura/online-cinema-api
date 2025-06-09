@@ -126,3 +126,12 @@ async def get_payments(
         total_pages=total_pages,
         total_items=total_items,
     )
+
+@router.get("/payment/cancel")
+async def payment_cancel(order_id: int):
+    return {
+        "detail": "Payment was cancelled.",
+        "message": "You can try again with another payment method.",
+        "order_id": order_id,
+        "retry_endpoint": "/create-checkout-session/"
+    }
