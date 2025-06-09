@@ -5,7 +5,7 @@ from sqlalchemy import pool, create_engine
 from sqlalchemy.engine import Connection
 
 from src.config.settings import settings
-from database.models.base import Base
+from src.database.models.base import Base
 
 # Import all models so Alembic can detect them
 import src.database.models  # noqa
