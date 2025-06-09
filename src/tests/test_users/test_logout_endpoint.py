@@ -16,9 +16,11 @@ async def test_logout_successful(async_client: AsyncClient, async_session: Async
     mock_result = MagicMock()
     mock_result.scalars.return_value = mock_scalars
 
-    with patch.object(async_session, "execute", new_callable=AsyncMock, return_value=mock_result) as mock_execute, \
-         patch.object(async_session, "delete", new_callable=AsyncMock) as mock_delete, \
-         patch.object(async_session, "commit", new_callable=AsyncMock) as mock_commit:
+    with (
+        patch.object(async_session, "execute", new_callable=AsyncMock, return_value=mock_result) as mock_execute,
+        patch.object(async_session, "delete", new_callable=AsyncMock) as mock_delete,
+        patch.object(async_session, "commit", new_callable=AsyncMock) as mock_commit,
+    ):
 
         response = await async_client.post("/auth/logout", cookies={"refresh_token": token_value})
 
@@ -30,8 +32,10 @@ async def test_logout_successful(async_client: AsyncClient, async_session: Async
 
 @pytest.mark.asyncio
 async def test_logout_without_cookie(async_client: AsyncClient, async_session: AsyncSession):
-    with patch.object(async_session, "execute", new_callable=AsyncMock) as mock_execute, \
-         patch.object(async_session, "commit", new_callable=AsyncMock) as mock_commit:
+    with (
+        patch.object(async_session, "execute", new_callable=AsyncMock) as mock_execute,
+        patch.object(async_session, "commit", new_callable=AsyncMock) as mock_commit,
+    ):
 
         response = await async_client.post("/auth/logout")  # Без refresh_token
 
@@ -50,9 +54,11 @@ async def test_logout_token_not_found(async_client: AsyncClient, async_session: 
     mock_result = MagicMock()
     mock_result.scalars.return_value = mock_scalars
 
-    with patch.object(async_session, "execute", new_callable=AsyncMock, return_value=mock_result) as mock_execute, \
-         patch.object(async_session, "delete", new_callable=AsyncMock) as mock_delete, \
-         patch.object(async_session, "commit", new_callable=AsyncMock) as mock_commit:
+    with (
+        patch.object(async_session, "execute", new_callable=AsyncMock, return_value=mock_result) as mock_execute,
+        patch.object(async_session, "delete", new_callable=AsyncMock) as mock_delete,
+        patch.object(async_session, "commit", new_callable=AsyncMock) as mock_commit,
+    ):
 
         response = await async_client.post("/auth/logout", cookies={"refresh_token": token_value})
 

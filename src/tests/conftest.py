@@ -11,6 +11,7 @@ from src.database.session import AsyncSessionLocal, engine
 from src.main import app
 from src.config.dependencies import get_db
 
+
 @pytest.fixture(scope="module")
 async def async_engine():
     engine = create_async_engine("sqlite+aiosqlite:///./test.db", echo=False)
@@ -20,6 +21,7 @@ async def async_engine():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
     await engine.dispose()
+
 
 @pytest.fixture(scope="function")
 async def db_session(async_engine):
@@ -33,6 +35,7 @@ async def db_session(async_engine):
     async with AsyncSessionLocal() as session:
         yield session
 
+
 @pytest.fixture(scope="function")
 async def client(db_session):
     app.dependency_overrides[get_db] = lambda: db_session
@@ -40,23 +43,27 @@ async def client(db_session):
         yield ac
     app.dependency_overrides.clear()
 
+
 @pytest.fixture(scope="function")
 async def guest_client(client: AsyncClient):
     yield client
+
 
 @pytest.fixture(scope="function")
 async def authenticated_user_client(client: AsyncClient, create_test_user):
     user_id, token = await create_test_user("testuser", "password", "user")
     client.headers = {"Authorization": f"Bearer {token}"}
     yield client
-    client.headers = {} # Очистити заголовки після тесту
+    client.headers = {}  # Очистити заголовки після тесту
+
 
 @pytest.fixture(scope="function")
 async def moderator_client(client: AsyncClient, create_test_user):
     user_id, token = await create_test_user("moderator", "password", "moderator")
     client.headers = {"Authorization": f"Bearer {token}"}
     yield client
-    client.headers = {} # Очистити заголовки після тесту
+    client.headers = {}  # Очистити заголовки після тесту
+
 
 @pytest.fixture(scope="function")
 async def admin_client(client: AsyncClient, create_test_user):
@@ -65,21 +72,20 @@ async def admin_client(client: AsyncClient, create_test_user):
     yield client
     client.headers = {}
 
+
 @pytest.fixture(scope="function")
 async def create_test_user(db_session: AsyncSession):
     async def _create_test_user(username, password, role):
 
-        user = UserModel(
-            username=username,
-            password=password,
-            role=role
-        )
+        user = UserModel(username=username, password=password, role=role)
         db_session.add(user)
         await db_session.commit()
         await db_session.refresh(user)
         dummy_token = f"dummy_token_for_{username}"
         return user.id, dummy_token
+
     return _create_test_user
+
 
 @pytest_asyncio.fixture
 async def async_session():
@@ -89,6 +95,7 @@ async def async_session():
     async with AsyncSessionLocal() as session:
         yield session
         await session.rollback()
+
 
 @pytest_asyncio.fixture
 async def async_client():

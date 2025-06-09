@@ -8,24 +8,8 @@ from src.database.models.accounts import UserModel
 from sqlalchemy.sql.sqltypes import Numeric
 
 
-from sqlalchemy import (
-    ForeignKey,
-    String,
-    Boolean,
-    DateTime,
-    Enum,
-    Integer,
-    func,
-    Text,
-    Date,
-    UniqueConstraint
-)
-from sqlalchemy.orm import (
-    Mapped,
-    mapped_column,
-    relationship,
-    validates
-)
+from sqlalchemy import ForeignKey, String, Boolean, DateTime, Enum, Integer, func, Text, Date, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from src.database.models.base import Base
 
