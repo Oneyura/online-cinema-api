@@ -40,7 +40,7 @@ class PaymentDetailResponseSchema(PaymentBaseSchema):
 
 
 class PaymentListResponseSchema(BaseModel):
-    payments: List[PaymentBaseSchema]
+    payments: List[PaymentDetailResponseSchema]
     prev_page: Optional[str]
     next_page: Optional[str]
     total_pages: int
