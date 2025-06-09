@@ -8,12 +8,15 @@ from fastapi.requests import Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
+from src.tasks import send_email_notification
 
-from database.models.accounts import UserModel
-from config.dependencies import get_current_user, get_db
-from database.models.payments import PaymentsModel, PaymentsModel
-from schemas.payments import PaymentListResponseSchema, PaymentDetailResponseSchema
-from services.payments_services import get_order_for_user, create_checkout_session_service, create_payment_in_db
+from src.database.models.accounts import UserModel
+from src.config.dependencies import get_current_user, get_db
+from src.database.models.payments import PaymentsModel, PaymentsModel
+from src.schemas.payments import PaymentListResponseSchema, PaymentDetailResponseSchema
+from src.services.payments_services import get_order_for_user, create_checkout_session_service, create_payment_in_db
+
+from src.services.payments_services import clear_user_cart
 
 router = APIRouter()
 
@@ -58,6 +61,11 @@ async def stripe_webhook(request: Request):
             amount=session["data"]["amount"],
             stripe_id=session["id"],
             status=session["payment_status"]
+        )
+        send_email_notification.delay(
+            user_id=user_id,
+            subject="Your Payment Was Successful",
+            template_name="payment_success.html"
         )
 
 # @router.get("/payments/history")
