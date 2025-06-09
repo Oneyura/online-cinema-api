@@ -5,11 +5,10 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-
+from src.database.models.accounts import ActivationTokenModel, UserGroupEnum, UserGroupModel, UserModel
 from src.schemas.auth import UserRegistrationRequestSchema
 from src.security.passwords import hash_password
-from src.tasks import send_email_notification
-from src.database.models.accounts import UserModel, UserGroupEnum, UserGroupModel, ActivationTokenModel
+from src.tasks import send_activation_complete_email, send_activation_email
 
 
 class AuthService:
@@ -17,9 +16,7 @@ class AuthService:
         self.db = db
 
     async def register_user(self, data: UserRegistrationRequestSchema) -> dict:
-        existing_user = await self.db.scalar(
-            select(UserModel).where(UserModel.email == data.email)
-        )
+        existing_user = await self.db.scalar(select(UserModel).where(UserModel.email == data.email))
         if existing_user:
             raise HTTPException(status_code=400, detail="Email already registered")
 
@@ -45,19 +42,15 @@ class AuthService:
         self.db.add(activation)
         await self.db.commit()
 
-        activation_link = f"http://localhost:8000/api/accounts/activate?token={token}"
-        send_email_notification.delay(
+        send_activation_email.delay(
             user_id=new_user.id,
-            subject="Activate your account",
-            message=f"Click to activate: {activation_link}",
+            activation_token=token,
         )
 
         return {"detail": "Activation email sent."}
 
     async def _get_default_user_group_id(self) -> int:
-        group = await self.db.scalar(
-            select(UserGroupModel).where(UserGroupModel.name == UserGroupEnum.USER)
-        )
+        group = await self.db.scalar(select(UserGroupModel).where(UserGroupModel.name == UserGroupEnum.USER))
         if not group:
             raise HTTPException(500, "Default user group not found")
         return group.id
@@ -85,11 +78,8 @@ class AuthService:
         await self.db.delete(activation_token)
         await self.db.commit()
 
-        login_link = "http://localhost:8000/login"
-        send_email_notification.delay(
+        send_activation_complete_email.delay(
             user_id=user.id,
-            subject="Account Activated Successfully",
-            message=f"Your account has been activated. You can login here: {login_link}"
         )
 
         return {"detail": "Account activated successfully."}
@@ -119,20 +109,14 @@ class AuthService:
         # Create a new token with 24-hour TTL
         token = secrets.token_urlsafe(32)
         expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
-        new_token = ActivationTokenModel(
-            user_id=user.id,
-            token=token,
-            expires_at=expires_at
-        )
+        new_token = ActivationTokenModel(user_id=user.id, token=token, expires_at=expires_at)
         self.db.add(new_token)
         await self.db.commit()
 
         # Send email via Celery
-        activation_link = f"http://localhost:8000/accounts/activate?token={token}"
-        send_email_notification.delay(
+        send_activation_email.delay(
             user_id=user.id,
-            subject="Activate your account - Resend",
-            message=f"Please activate your account by clicking the link: {activation_link}"
+            activation_token=token,
         )
 
         return {"detail": "If the email is registered and not activated, an activation link has been sent."}
