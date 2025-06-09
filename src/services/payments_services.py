@@ -1,3 +1,4 @@
+from decimal import Decimal
 from http.client import HTTPException
 
 from sqlalchemy.orm import Session
@@ -15,11 +16,23 @@ from database.models.payments import PaymentsModel, PaymentStatus, PaymentsItemM
 def create_payment_in_db(
         user_id: int,
         order_id: int,
-        amount: float,
+        amount: Decimal,
         stripe_id: str,
         status: str,
         db: Session,
 ):
+
+    order = db.query(Order).filter(Order.id == order_id, Order.user_id == user_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    expected_amount = sum(item.price * item.quantity for item in order.items)
+    if round(amount, 2) != round(expected_amount, 2):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid payment amount. Expected {expected_amount}, got {amount}"
+        )
+
     match status:
         case "paid":
             payment_status = PaymentStatus.SUCCESSFUL
@@ -38,7 +51,6 @@ def create_payment_in_db(
     db.add(payment)
     db.flush()
 
-    order = db.query(Order).filter(Order.id == order_id).first()
     for item in order.items:
         db.add(PaymentsItemModel(
             payment_id=payment.id,
