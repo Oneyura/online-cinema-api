@@ -20,6 +20,7 @@ class CartModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
+    user: Mapped["UserModel"] = relationship("UserModel", back_populates="cart")
     cart_items: Mapped[List["CartItemModel"]] = relationship(
         "CartItemModel", back_populates="cart", cascade="all, delete-orphan"
     )
@@ -44,6 +45,7 @@ class CartItemModel(Base):
 
     # Relationships
     cart: Mapped["CartModel"] = relationship("CartModel", back_populates="cart_items")
+    movie: Mapped["MovieModel"] = relationship("MovieModel")
 
     # Constraints
     __table_args__ = (UniqueConstraint("cart_id", "movie_id", name="uq_cart_items_cart_id_movie_id"),)
