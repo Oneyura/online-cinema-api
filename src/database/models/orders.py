@@ -1,7 +1,12 @@
+from typing import List
+
 from sqlalchemy import Column, Integer, ForeignKey, DateTime, Enum, Numeric
 from sqlalchemy.orm import relationship
 import enum
 from datetime import datetime
+
+from sqlalchemy.orm.attributes import Mapped
+
 from src.database.base import Base
 
 
@@ -20,6 +25,7 @@ class Order(Base):
     status = Column(Enum(OrderStatusEnum), nullable=False)
     total_amount = Column(Numeric(10, 2))
 
+    payments: Mapped[List["Payments"]] = relationship("Payments", back_populates="order")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
 
 
@@ -32,5 +38,5 @@ class OrderItem(Base):
     price_at_order = Column(Numeric(10, 2), nullable=False)
 
     order = relationship("Order", back_populates="items")
-
+    payments_items: Mapped[List["PaymentsItem"]] = relationship("PaymentsItem", back_populates="order_item")
 
