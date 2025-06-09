@@ -1,5 +1,6 @@
+from datetime import datetime
 from decimal import Decimal
-from typing import cast
+from typing import cast, List, Optional
 from pydantic import HttpUrl
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -130,3 +131,128 @@ async def create_order(
         payment_url=cast(HttpUrl, checkout_link.url),
     )
 
+
+@router.get("/users/{user_id}/orders/", response_model=List[OrderResponseSchema])
+async def get_user_orders(
+    user_id: int,
+    token: str = Depends(get_token),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+    db: AsyncSession = Depends(get_db)
+):
+    payload = jwt_manager.decode_access_token(token)
+    token_user_id = payload.get("user_id")
+
+    if user_id != token_user_id:
+        raise HTTPException(status_code=403, detail="Access forbidden")
+
+    stmt = select(Order).where(Order.user_id == user_id)
+    result = await db.execute(stmt)
+    orders = result.scalars().all()
+
+    response = []
+    for order in orders:
+        order_items = [
+            OrderItemSchema(
+                movie_id=item.movie_id,
+                price_at_order=item.price_at_order
+            ) for item in order.items
+        ]
+        response.append(OrderResponseSchema(
+            id=order.id,
+            created_at=order.created_at,
+            status=order.status,
+            total_amount=order.total_amount,
+            items=order_items,
+            payment_url=None  # Not included in history for now
+        ))
+
+    return response
+
+
+@router.get("/admin/orders/", response_model=List[OrderResponseSchema])
+async def get_all_orders_admin(
+    token: str = Depends(get_token),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+    db: AsyncSession = Depends(get_db),
+    user_id: Optional[int] = None,
+    status_filter: Optional[OrderStatusEnum] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None
+):
+    payload = jwt_manager.decode_access_token(token)
+    token_user_id = payload.get("user_id")
+
+    stmt = (
+        select(UserGroupModel)
+        .join(UserModel)
+        .where(UserModel.id == token_user_id)
+    )
+    result = await db.execute(stmt)
+    group = result.scalars().first()
+    if not group or group.name != UserGroupEnum.ADMIN:
+        raise HTTPException(status_code=403, detail="Admins only")
+
+    stmt = select(Order)
+    conditions = []
+
+    if user_id:
+        conditions.append(Order.user_id == user_id)
+    if status_filter:
+        conditions.append(Order.status == status_filter)
+    if date_from:
+        conditions.append(Order.created_at >= date_from)
+    if date_to:
+        conditions.append(Order.created_at <= date_to)
+
+    if conditions:
+        stmt = stmt.where(and_(*conditions))
+
+    result = await db.execute(stmt)
+    orders = result.scalars().all()
+
+    response = []
+    for order in orders:
+        order_items = [
+            OrderItemSchema(
+                movie_id=item.movie_id,
+                price_at_order=item.price_at_order
+            ) for item in order.items
+        ]
+        response.append(OrderResponseSchema(
+            id=order.id,
+            created_at=order.created_at,
+            status=order.status,
+            total_amount=order.total_amount,
+            items=order_items,
+            payment_url=None
+        ))
+
+    return response
+
+
+@router.delete("/orders/{order_id}/")
+async def cancel_order(
+    order_id: int,
+    token: str = Depends(get_token),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+    db: AsyncSession = Depends(get_db)
+):
+    payload = jwt_manager.decode_access_token(token)
+    token_user_id = payload.get("user_id")
+
+    stmt = select(Order).where(Order.id == order_id)
+    result = await db.execute(stmt)
+    order = result.scalars().first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if order.user_id != token_user_id:
+        raise HTTPException(status_code=403, detail="Access forbidden")
+
+    if order.status != OrderStatusEnum.PENDING:
+        raise HTTPException(status_code=400, detail="Only pending orders can be canceled")
+
+    order.status = OrderStatusEnum.CANCELED
+    await db.commit()
+
+    return {"detail": "Order canceled"}
