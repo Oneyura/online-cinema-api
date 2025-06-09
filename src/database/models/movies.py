@@ -190,8 +190,21 @@ class CommentModel(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.now)
 
+    # Додайте поле для батьківського коментаря
+    parent_comment_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("comments.id", ondelete="CASCADE"), nullable=True
+    )
+
     user: Mapped["UserModel"] = relationship("UserModel", back_populates="comments")
     movie: Mapped["MovieModel"] = relationship("MovieModel", back_populates="comments")
+
+    # Додайте зв'язки для ієрархії коментарів
+    parent_comment: Mapped[Optional["CommentModel"]] = relationship(
+        "CommentModel", remote_side=[id], back_populates="replies", lazy="joined"
+    )
+    replies: Mapped[List["CommentModel"]] = relationship(
+        "CommentModel", back_populates="parent_comment", lazy="joined"
+    )
 
     def __repr__(self) -> str:
         return f"<Comment(id={self.id}, user_id={self.user_id}, movie_id={self.movie_id}, text='{self.text[:20]}...')>"

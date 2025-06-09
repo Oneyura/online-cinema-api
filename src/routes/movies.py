@@ -210,7 +210,7 @@ async def like_dislike_movie(
 
     # Check for existing like/dislike
     existing_like = await db.execute(
-        select(MovieLikeModel).filter_by(user_id=current_user.id, movie_id=movie_id) # Використовуємо current_user.id
+            select(MovieLikeModel).filter_by(user_id=current_user.id, movie_id=movie_id) # Використовуємо current_user.id
     )
     existing_like = existing_like.scalars().first()
 
@@ -244,54 +244,73 @@ async def like_dislike_movie(
 @router.post("/{movie_id}/comments", response_model=CommentResponse)
 async def write_comment(
         movie_id: int,
-        comment: CommentCreate,
+        comment: CommentCreate, # Ця схема тепер має parent_comment_id
         current_user: UserModel = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ) -> CommentResponse:
     """
-    Write a comment on a movie.
+    Write a comment on a movie, or reply to an existing comment.
     """
     # Check if movie exists
     movie_exists = await db.execute(select(MovieModel.id).filter_by(id=movie_id))
     if not movie_exists.scalars().first():
         raise HTTPException(status_code=404, detail="Movie not found")
 
+    # If parent_comment_id is provided, check if it exists and belongs to the same movie
+    if comment.parent_comment_id:
+        parent_comment = await db.execute(
+            select(CommentModel).filter_by(id=comment.parent_comment_id, movie_id=movie_id)
+        )
+        if not parent_comment.scalars().first():
+            raise HTTPException(status_code=400, detail="Parent comment not found or does not belong to this movie.")
+
     new_comment = CommentModel(
-        user_id=current_user.id, # Використовуємо current_user.id
+        user_id=current_user.id,
         movie_id=movie_id,
-        text=comment.text
+        text=comment.text,
+        parent_comment_id=comment.parent_comment_id # Тепер зберігаємо батьківський ID
     )
     db.add(new_comment)
     await db.commit()
     await db.refresh(new_comment)
 
-    # Populate user for response
-    await db.refresh(new_comment, attribute_names=['user'])
+    # Populate user and potentially parent_comment/replies for response
+    # Якщо CommentResponse має 'user' і 'replies', потрібно завантажити їх
+    await db.refresh(new_comment, attribute_names=['user', 'parent_comment', 'replies']) # Додаємо replies для рекурсивного завантаження
     return new_comment
 
 
-@router.get("/{movie_id}/comments", response_model=List[CommentResponse])
+@router.get("/{movie_id}/comments", response_model=List[CommentResponseNested]) # Використовуйте CommentResponseNested
 async def get_movie_comments(
         movie_id: int,
         db: AsyncSession = Depends(get_db),
         page: int = Query(1, ge=1),
         limit: int = Query(10, ge=1, le=100)
-) -> List[CommentResponse]:
+) -> List[CommentResponseNested]:
     """
-    Get all comments for a specific movie.
+    Get all top-level comments for a specific movie, with nested replies.
     """
-    query = select(CommentModel).filter(CommentModel.movie_id == movie_id)
+    query = (
+        select(CommentModel)
+        .filter(CommentModel.movie_id == movie_id)
+        .filter(CommentModel.parent_comment_id.is_(None)) # Фільтруємо, щоб отримати лише коментарі верхнього рівня
+    )
 
     query = query.order_by(CommentModel.created_at.desc())
 
     offset = (page - 1) * limit
     query = query.offset(offset).limit(limit)
 
-    # Eager load user for comments
-    query = query.options(selectinload(CommentModel.user))
+    # Eager load user for comments and recursively load replies
+    query = query.options(
+        selectinload(CommentModel.user),
+        selectinload(CommentModel.replies).selectinload(CommentModel.user).selectinload(CommentModel.replies) # Рекурсивно завантажуємо відповіді
+        # Ви можете розширити .selectinload(CommentModel.replies) ще раз, щоб отримати більше рівнів вкладеності
+        # Або використовувати 'recursion_depth' у більш складних випадках, але це простіший варіант для кількох рівнів
+    )
 
     result = await db.execute(query)
-    comments = result.scalars().all()
+    comments = result.scalars().unique().all() # .unique() може допомогти уникнути дублікатів при складному eager loading
     return comments
 
 

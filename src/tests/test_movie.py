@@ -4,7 +4,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timedelta # Імпортуємо timedelta
 from decimal import Decimal
 
 # Важливо: імпортуйте Order та OrderItem безпосередньо з їхніх файлів,
@@ -439,8 +439,8 @@ class TestMovieInteractions:
         like_in_db = await db_session.execute(select(MovieLikeModel).filter_by(movie_id=movie.id))
         assert like_in_db.scalars().first().is_liked is False
 
-    async def test_write_comment(self, authenticated_user_client: AsyncClient, db_session: AsyncSession, authenticated_user: UserModel):
-        """Тест написання коментаря до фільму."""
+    async def test_write_top_level_comment(self, authenticated_user_client: AsyncClient, db_session: AsyncSession, authenticated_user: UserModel):
+        """Тест написання коментаря верхнього рівня до фільму."""
         cert = CertificationModel(name="PG")
         db_session.add(cert)
         await db_session.commit()
@@ -457,16 +457,15 @@ class TestMovieInteractions:
         assert response.status_code == 200
         assert response.json()["text"] == "This movie is amazing!"
         assert response.json()["movie_id"] == movie.id
+        assert response.json()["parent_comment_id"] is None # Перевіряємо, що це коментар верхнього рівня
         assert "user" in response.json()
-        assert response.json()["user"]["username"] == authenticated_user.username # Use the actual authenticated user's username
+        assert response.json()["user"]["username"] == authenticated_user.username
 
-        comment_in_db = await db_session.execute(select(CommentModel).filter_by(movie_id=movie.id, user_id=authenticated_user.id))
+        comment_in_db = await db_session.execute(select(CommentModel).filter_by(movie_id=movie.id, user_id=authenticated_user.id, parent_comment_id=None))
         assert comment_in_db.scalars().first() is not None
 
-    async def test_get_movie_comments(self, authenticated_user_client: AsyncClient, db_session: AsyncSession, create_test_user):
-        """Тест отримання коментарів до фільму."""
-        # Виправлено виклик create_test_user та передачу ролі/username
-        user1_model, _ = await create_test_user("user1@example.com", "user1pass", "user", username="UserOne")
+    async def test_reply_to_comment(self, authenticated_user_client: AsyncClient, db_session: AsyncSession, authenticated_user: UserModel, create_test_user):
+        """Тест написання відповіді на існуючий коментар."""
         user2_model, _ = await create_test_user("user2@example.com", "user2pass", "user", username="UserTwo")
 
         cert = CertificationModel(name="PG")
@@ -474,26 +473,86 @@ class TestMovieInteractions:
         await db_session.commit()
         await db_session.refresh(cert)
 
-        movie = MovieModel(uuid=uuid4(), name="Movie with Comments", year=2021, time=110, imdb=7.5, votes=600, description="Movie to get comments for.", price=Decimal("11.00"), certification_id=cert.id)
+        movie = MovieModel(uuid=uuid4(), name="Reply Test Movie", year=2021, time=110, imdb=7.5, votes=600, description="Movie to test replies.", price=Decimal("11.00"), certification_id=cert.id)
         db_session.add(movie)
         await db_session.commit()
         await db_session.refresh(movie)
 
-        # Ensure comments have different creation times to test sorting
-        comment1 = CommentModel(user_id=user1_model.id, movie_id=movie.id, text="Great movie!", created_at=datetime(2023, 1, 1, 10, 0, 0))
-        comment2 = CommentModel(user_id=user2_model.id, movie_id=movie.id, text="Really enjoyed it.", created_at=datetime(2023, 1, 1, 11, 0, 0))
+        # Створюємо батьківський коментар
+        parent_comment = CommentModel(user_id=authenticated_user.id, movie_id=movie.id, text="Original comment.")
+        db_session.add(parent_comment)
+        await db_session.commit()
+        await db_session.refresh(parent_comment)
+
+        reply_data = {"text": "This is a reply!", "parent_comment_id": parent_comment.id}
+        response = await authenticated_user_client.post(f"/movies/{movie.id}/comments", json=reply_data)
+
+        assert response.status_code == 200
+        assert response.json()["text"] == "This is a reply!"
+        assert response.json()["movie_id"] == movie.id
+        assert response.json()["parent_comment_id"] == parent_comment.id
+        assert "user" in response.json()
+        assert response.json()["user"]["username"] == authenticated_user.username
+
+        reply_in_db = await db_session.execute(select(CommentModel).filter_by(movie_id=movie.id, user_id=authenticated_user.id, parent_comment_id=parent_comment.id))
+        assert reply_in_db.scalars().first() is not None
+
+    async def test_get_movie_comments_with_replies(self, authenticated_user_client: AsyncClient, db_session: AsyncSession, create_test_user):
+        """Тест отримання коментарів до фільму, включаючи вкладені відповіді."""
+        user1_model, _ = await create_test_user("user1@example.com", "user1pass", "user", username="UserOne")
+        user2_model, _ = await create_test_user("user2@example.com", "user2pass", "user", username="UserTwo")
+        user3_model, _ = await create_test_user("user3@example.com", "user3pass", "user", username="UserThree")
+
+
+        cert = CertificationModel(name="PG")
+        db_session.add(cert)
+        await db_session.commit()
+        await db_session.refresh(cert)
+
+        movie = MovieModel(uuid=uuid4(), name="Movie with Nested Comments", year=2022, time=120, imdb=8.0, votes=700, description="Movie to get nested comments for.", price=Decimal("12.00"), certification_id=cert.id)
+        db_session.add(movie)
+        await db_session.commit()
+        await db_session.refresh(movie)
+
+        # Створюємо коментарі та відповіді
+        now = datetime.now()
+        comment1 = CommentModel(user_id=user1_model.id, movie_id=movie.id, text="Main comment 1.", created_at=now - timedelta(minutes=3))
+        comment2 = CommentModel(user_id=user2_model.id, movie_id=movie.id, text="Main comment 2.", created_at=now - timedelta(minutes=1))
         db_session.add_all([comment1, comment2])
         await db_session.commit()
+        await db_session.refresh(comment1)
+        await db_session.refresh(comment2)
+
+        reply1_to_comment1 = CommentModel(user_id=user3_model.id, movie_id=movie.id, text="Reply to main 1.", parent_comment_id=comment1.id, created_at=now - timedelta(minutes=2))
+        reply2_to_comment1 = CommentModel(user_id=user2_model.id, movie_id=movie.id, text="Another reply to main 1.", parent_comment_id=comment1.id, created_at=now) # Найсвіжіший коментар
+        db_session.add_all([reply1_to_comment1, reply2_to_comment1])
+        await db_session.commit()
+        await db_session.refresh(reply1_to_comment1)
+        await db_session.refresh(reply2_to_comment1)
+
 
         response = await authenticated_user_client.get(f"/movies/{movie.id}/comments")
         assert response.status_code == 200
         comments = response.json()
+
+        # Перевіряємо, що повернулися тільки коментарі верхнього рівня
         assert len(comments) == 2
-        # Assuming API returns comments ordered by created_at DESC (newest first)
-        assert comments[0]["text"] == "Really enjoyed it."
-        assert comments[1]["text"] == "Great movie!"
-        assert comments[0]["user"]["username"] == "UserTwo"
-        assert comments[1]["user"]["username"] == "UserOne"
+        # Перевіряємо сортування коментарів верхнього рівня (від найновіших)
+        assert comments[0]["text"] == "Main comment 2."
+        assert comments[1]["text"] == "Main comment 1."
+
+        # Перевіряємо вкладені відповіді
+        main_comment_1_response = next((c for c in comments if c["text"] == "Main comment 1."), None)
+        assert main_comment_1_response is not None
+        assert "replies" in main_comment_1_response
+        assert len(main_comment_1_response["replies"]) == 2
+
+        # Перевіряємо сортування відповідей (від найновіших)
+        assert main_comment_1_response["replies"][0]["text"] == "Another reply to main 1."
+        assert main_comment_1_response["replies"][0]["user"]["username"] == "UserTwo"
+        assert main_comment_1_response["replies"][1]["text"] == "Reply to main 1."
+        assert main_comment_1_response["replies"][1]["user"]["username"] == "UserThree"
+
 
     async def test_add_movie_to_favorites(self, authenticated_user_client: AsyncClient, db_session: AsyncSession):
         """Тест додавання фільму до обраних."""
@@ -534,9 +593,6 @@ class TestMovieInteractions:
         favorite = FavoriteMovieModel(user_id=user.id, movie_id=movie.id)
         db_session.add(favorite)
         await db_session.commit()
-
-        # No need to mock get_current_user if authenticated_user_client is already set up to use authenticated_user
-        # app.dependency_overrides[app.dependency_overrides[get_current_user]] = lambda: user # This line is problematic and likely incorrect syntax.
 
         response = await authenticated_user_client.delete(f"/movies/{movie.id}/favorite")
         assert response.status_code == 204

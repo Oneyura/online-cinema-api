@@ -26,4 +26,5 @@ app.add_middleware(
 
 # Include routers
 app.include_router(cart_router, prefix="/api")
+
 app.include_router(order_router, prefix="/api")

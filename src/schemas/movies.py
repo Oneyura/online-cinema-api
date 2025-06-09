@@ -182,30 +182,36 @@ class MovieResponse(MovieCreate):
 
     model_config = ConfigDict(from_attributes=True)
 
-# Виправлено: Залишено тільки одне оголошення CommentCreate
-class CommentCreate(BaseModel):
-    text: str = Field(
-        ...,
-        min_length=1,
-        max_length=1000,
-        example="This movie was fantastic!"
-    )
-
-# Виправлено: UserResponseNested має успадковувати від BaseModel
-class UserResponseNested(BaseModel):
-    id: int # Додайте поля, які ви очікуєте від UserResponseNested
-    username: str # Наприклад, id та username
-    model_config = ConfigDict(from_attributes=True)
-
-
-class CommentResponse(BaseModel):
+# Визначте базову схему для коментарів без вкладених відповідей, щоб уникнути рекурсії
+class CommentBase(BaseModel):
     id: int
     user_id: int
     movie_id: int
     text: str
-    created_at: datetime
-    user: UserResponseNested # Тепер UserResponseNested є правильною Pydantic моделлю
+    created_at: datetime.datetime
+    parent_comment_id: Optional[int] = None # Додано
 
+    class Config:
+        from_attributes = True
+
+# Схема для створення коментаря
+class CommentCreate(BaseModel):
+    text: str = Field(..., min_length=1, max_length=1000)
+    parent_comment_id: Optional[int] = None
+
+# Схема для відповіді на коментар, що включає інформацію про користувача та, можливо, вкладені відповіді
+class CommentResponse(CommentBase):
+    user: "UserModelResponse" # Використовуйте схему для UserModel, яку ви вже маєте
+    replies: Optional[List["CommentResponse"]] = None # Необхідно для вкладених відповідей
+
+# Оновіть CommentResponse для рекурсії, якщо хочете бачити вкладені відповіді
+# Це вимагає використання `update_forward_refs()` після визначення всіх схем
+class CommentResponseNested(CommentBase):
+    user: "UserModelResponse"
+    replies: Optional[List["CommentResponseNested"]] = None # Для вкладених відповідей
+class UserResponseNested(BaseModel):
+    id: int # Додайте поля, які ви очікуєте від UserResponseNested
+    username: str # Наприклад, id та username
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -267,3 +273,5 @@ CommentResponse.model_rebuild()
 MovieLikeResponse.model_rebuild()
 MovieRatingResponse.model_rebuild()
 FavoriteMovieResponse.model_rebuild()
+CommentResponse.update_forward_refs()
+CommentResponseNested.update_forward_refs()
