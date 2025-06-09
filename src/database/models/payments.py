@@ -37,6 +37,7 @@ class PaymentStatus(enum.Enum):
 
 
 class Payments(Base):
+    __tablename__ = "payments"
 
     id: Mapped[int] = mapped_column(
         Integer,

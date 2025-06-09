@@ -68,6 +68,18 @@ class UserModel(Base):
 
     payments: Mapped[List["Payments"]] = relationship("Payments", back_populates="user")
 
+    comments: Mapped[List["CommentModel"]] = relationship("CommentModel", back_populates="user")
+
+    movie_likes: Mapped[List["MovieLikeModel"]] = relationship("MovieLikeModel", back_populates="user")
+
+    favorite_movies: Mapped[List["FavoriteMovieModel"]] = relationship("FavoriteMovieModel", back_populates="user")
+
+    movie_ratings: Mapped[List["MovieRatingModel"]] = relationship("MovieRatingModel", back_populates="user")
+
+    purchases: Mapped[List["PurchaseModel"]] = relationship("PurchaseModel", back_populates="user")
+
+    cart: Mapped["CartModel"] = relationship("CartModel", back_populates="user", cascade="all, delete-orphan")
+
     def __repr__(self):
         return f"<UserModel(id={self.id}, email={self.email}, is_active={self.is_active})>"
 

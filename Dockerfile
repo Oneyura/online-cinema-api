@@ -7,7 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     POETRY_VERSION=1.7.1 \
     POETRY_HOME="/opt/poetry" \
     POETRY_VIRTUALENVS_CREATE=false \
-    ALEMBIC_CONFIG=/usr/src/alembic/alembic.ini
+    ALEMBIC_CONFIG=/usr/src/alembic/alembic.ini \
+    PYTHONPATH=/usr/src/app
 
 # Add Poetry to PATH
 ENV PATH="$POETRY_HOME/bin:$PATH"
