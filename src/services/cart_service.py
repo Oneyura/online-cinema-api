@@ -167,7 +167,14 @@ class CartService:
         cart_item = CartItemModel(cart_id=cart.id, movie_id=movie_id)
         session.add(cart_item)
         await session.flush()
-        await session.refresh(cart_item)
+        
+        # Load cart_item with movie and its genres
+        from sqlalchemy.orm import selectinload
+        query = select(CartItemModel).options(
+            selectinload(CartItemModel.movie).selectinload(MovieModel.genres)
+        ).where(CartItemModel.id == cart_item.id)
+        result = await session.execute(query)
+        cart_item = result.scalar_one()
 
         return cart_item
 
