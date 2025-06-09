@@ -41,7 +41,8 @@ class Settings(BaseAppSettings):
     POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "localhost")
     POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", 5433))
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "cinema_db")
-    DB_ECHO_LOG: bool = os.getenv("DB_ECHO_LOG", "False").lower() == "true"
+
+    DB_ECHO_LOG: bool = False
 
     @property
     def database_url(self) -> str:
@@ -65,7 +66,6 @@ class TestSettings(BaseAppSettings):
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5433
     POSTGRES_DB: str = "test_db"
-    DB_ECHO_LOG: bool = False
 
     @property
     def database_url(self) -> str:
