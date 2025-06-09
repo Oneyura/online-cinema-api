@@ -1,23 +1,22 @@
 import os
 from typing import AsyncGenerator
 
-from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.future import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import UserModel
-from src.exceptions.security import TokenExpiredError, InvalidTokenError
-from src.security.interfaces import JWTAuthManagerInterface
+from database.models import UserModel
+from exceptions.security import TokenExpiredError, InvalidTokenError
+from security.interfaces import JWTAuthManagerInterface
+from security.token import oauth2_scheme
+from security.token_manager import JWTAuthManager
 from src.config.settings import BaseAppSettings, Settings, TestSettings
-from src.database.session import get_async_session
 from src.notifications.emails import EmailSender
 from src.notifications.interfaces import EmailSenderInterface
+from src.security.token_manager import JWTAuthManager
 from src.storages.interfaces import S3StorageInterface
 from src.storages.s3 import S3StorageClient
-from src.security.token_manager import JWTAuthManager
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+from src.security.interfaces import JWTAuthManagerInterface
 
 
 def get_settings() -> BaseAppSettings:
@@ -28,47 +27,10 @@ def get_settings() -> BaseAppSettings:
     return Settings()
 
 
-def get_token(token: str = Depends(oauth2_scheme)) -> str:
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return token
-
-
-def get_jwt_auth_manager(settings: BaseAppSettings = Depends(get_settings)) -> JWTAuthManagerInterface:
-    """
-    Create and return a JWT authentication manager instance.
-
-    This function uses the provided application settings to instantiate a JWTAuthManager, which implements
-    the JWTAuthManagerInterface. The manager is configured with secret keys for access and refresh tokens
-    as well as the JWT signing algorithm specified in the settings.
-
-    Args:
-        settings (BaseAppSettings, optional): The application settings instance.
-        Defaults to the output of get_settings().
-
-    Returns:
-        JWTAuthManagerInterface: An instance of JWTAuthManager configured with
-        the appropriate secret keys and algorithm.
-    """
-    return JWTAuthManager(
-        secret_key_access=settings.SECRET_KEY_ACCESS,
-        secret_key_refresh=settings.SECRET_KEY_REFRESH,
-        algorithm=settings.JWT_SIGNING_ALGORITHM
-    )
-
-
-async def get_db(
-    session: AsyncSession = Depends(get_async_session),
-) -> AsyncGenerator[AsyncSession, None]:
-    """Get database session dependency."""
-    try:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    from src.database.session import get_async_session
+    async with get_async_session() as session:
         yield session
-    finally:
-        await session.close()
 
 
 def get_email_sender(
@@ -98,6 +60,29 @@ def get_minio_client(
         access_key=settings.MINIO_ROOT_USER,
         secret_key=settings.MINIO_ROOT_PASSWORD,
         bucket_name=settings.MINIO_BUCKET_NAME,
+    )
+
+  
+def get_jwt_auth_manager(settings: BaseAppSettings = Depends(get_settings)) -> JWTAuthManagerInterface:
+    """
+    Create and return a JWT authentication manager instance.
+
+    This function uses the provided application settings to instantiate a JWTAuthManager, which implements
+    the JWTAuthManagerInterface. The manager is configured with secret keys for access and refresh tokens
+    as well as the JWT signing algorithm specified in the settings.
+
+    Args:
+        settings (BaseAppSettings, optional): The application settings instance.
+        Defaults to the output of get_settings().
+
+    Returns:
+        JWTAuthManagerInterface: An instance of JWTAuthManager configured with
+        the appropriate secret keys and algorithm.
+    """
+    return JWTAuthManager(
+        secret_key_access=settings.SECRET_KEY_ACCESS,
+        secret_key_refresh=settings.SECRET_KEY_REFRESH,
+        algorithm=settings.JWT_SIGNING_ALGORITHM
     )
 
 

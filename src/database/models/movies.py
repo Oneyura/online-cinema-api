@@ -15,6 +15,7 @@ from sqlalchemy import (
 import datetime
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 
+from src.database.models import Order
 from src.database.models.accounts import UserModel
 from src.database.models.base import Base
 
@@ -144,8 +145,8 @@ class MovieModel(Base):
         "FavoriteMovieModel",
         back_populates="movie"
     )
-    purchases: Mapped[List["PurchaseModel"]] = relationship(
-        "PurchaseModel",
+    purchases: Mapped[List["Order"]] = relationship(
+        "Order",
         back_populates="movie"
     )
     certification_id: Mapped[int] = mapped_column(
@@ -234,15 +235,3 @@ class MovieRatingModel(Base):
 
     user: Mapped["UserModel"] = relationship("UserModel", back_populates="movie_ratings")
     movie: Mapped["MovieModel"] = relationship("MovieModel", back_populates="movie_ratings")
-
-
-class PurchaseModel(Base):
-    __tablename__ = "purchases"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    movie_id: Mapped[int] = mapped_column(ForeignKey("movies.id", ondelete="CASCADE"), nullable=False)
-    purchase_date: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.now)
-    price_paid: Mapped[float] = mapped_column(DECIMAL(10, 2), nullable=False)
-
-    user: Mapped["UserModel"] = relationship("UserModel", back_populates="purchases")
-    movie: Mapped["MovieModel"] = relationship("MovieModel", back_populates="purchases")
