@@ -1,17 +1,14 @@
 from decimal import Decimal
-from http.client import HTTPException
-
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
-
-from src.database.models import UserModel
-from src.database.models.orders import Order
+from fastapi  import HTTPException
+from sqlalchemy.orm import selectinload
 import stripe
+from sqlalchemy import select, delete
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.database.models import UserModel, CartModel, CartItemModel
+from src.database.models.orders import Order, OrderStatusEnum
 from src.database.models.payments import PaymentsModel, PaymentStatus, PaymentsItemModel
 
-from src.database.models import CartItemModel
-from src.database.models import PaymentsModel, PaymentStatus, OrderStatusEnum, Order
-from sqlalchemy import select
 
 async def create_payment_from_stripe_event(session, db: AsyncSession):
     user_id = int(session["metadata"]["user_id"])
@@ -29,45 +26,57 @@ async def create_payment_from_stripe_event(session, db: AsyncSession):
         db=db
     )
 
+
 async def mark_payment_as_refunded(stripe_payment_intent: str, db: AsyncSession):
-    stmt = select(PaymentsModel).where(PaymentsModel.external_payment_id == stripe_payment_intent)
+    stmt = (
+        select(PaymentsModel)
+        .options(selectinload(PaymentsModel.order))
+        .where(PaymentsModel.external_payment_id == stripe_payment_intent)
+    )
     result = await db.execute(stmt)
     payment = result.scalar_one_or_none()
 
     if payment:
         payment.status = PaymentStatus.REFUNDED
 
-        # також скасовуємо замовлення
-        order = await db.get(Order, payment.order_id)
-        if order:
-            order.status = OrderStatusEnum.CANCELED
+        if payment.order:
+            payment.order.status = OrderStatusEnum.CANCELED
 
         await db.commit()
 
 
-def get_order_for_user(order_id: int, user: UserModel, db: Session) -> Order | None:
-    return db.query(Order).filter(Order.id == order_id, Order.user_id == user.id).first()
+async def get_order_for_user(order_id: int, user: UserModel, db: AsyncSession) -> Order | None:
+    stmt = select(Order).where(Order.id == order_id, Order.user_id == user.id)
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
 
 
-def clear_user_cart(user_id: int, db: Session):
-    db.query(CartItemModel).filter(CartItemModel.user_id == user_id).delete()
-    db.commit()
+async def clear_user_cart(user_id: int, db: AsyncSession):
+    stmt = delete(CartItemModel).where(CartItemModel.cart_id.in_(
+        select(CartModel.id).where(CartModel.user_id == user_id)
+    ))
+    await db.execute(stmt)
+    await db.commit()
 
-def create_payment_in_db(
-        user_id: int,
-        order_id: int,
-        amount: Decimal,
-        stripe_id: str,
-        status: str,
-        db: Session,
+
+async def create_payment_in_db(
+    user_id: int,
+    order_id: int,
+    amount: Decimal,
+    stripe_id: str,
+    status: str,
+    db: AsyncSession,
 ):
-    clear_user_cart(user_id, db) # Clearing user's cart
-    order = db.query(Order).filter(Order.id == order_id, Order.user_id == user_id).first()
+    await clear_user_cart(user_id, db)
+
+    stmt = select(Order).where(Order.id == order_id, Order.user_id == user_id)
+    result = await db.execute(stmt)
+    order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
     expected_amount = sum(item.price_at_order for item in order.items)
-    if round(amount, 2) != round(expected_amount, 2):
+    if Decimal(str(amount)).quantize(Decimal("0.01")) != expected_amount.quantize(Decimal("0.01")):
         raise HTTPException(
             status_code=400,
             detail=f"Invalid payment amount. Expected {expected_amount}, got {amount}"
@@ -89,15 +98,15 @@ def create_payment_in_db(
         external_payment_id=stripe_id,
     )
     db.add(payment)
-    db.flush()
+    await db.flush()
 
     for item in order.items:
         db.add(PaymentsItemModel(
             payment_id=payment.id,
             order_item_id=item.id,
-            price_at_payment=item.price
+            price_at_payment=item.price_at_order
         ))
-    db.commit()
+    await db.commit()
 
 
 def create_checkout_session_service(order: Order, user: UserModel):
@@ -108,15 +117,15 @@ def create_checkout_session_service(order: Order, user: UserModel):
         {
             "price_data": {
                 "currency": "USD",
-                "product_data": {"id": item.id}, #todo change to movie name
-                "unit_amount": int(item.price * 100),
+                "product_data": {"name": f"Movie #{item.movie_id}"},  # TODO: use movie name if available
+                "unit_amount": int(item.price_at_order * 100),
             },
-            "quantity": item.quantity,
+            "quantity": 1,
         }
-        for item in order.items.all()  # or `order.items`, if not relationship
+        for item in order.items
     ]
 
-    base_url = "http://domen.com/api"  # e.g. http://localhost:8000
+    base_url = "http://domen.com/api"
     success_url = f"{base_url}/payment/success/?order_id={order.id}"
     cancel_url = f"{base_url}/payment/cancel/?order_id={order.id}"
 

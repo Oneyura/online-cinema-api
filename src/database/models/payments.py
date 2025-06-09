@@ -37,7 +37,7 @@ class PaymentStatus(enum.Enum):
 
 
 class PaymentsModel(Base):
-    __tablename__ = "payments"
+    __tablename__ = "PaymentsModel"
 
     id: Mapped[int] = mapped_column(
         Integer,
@@ -63,7 +63,7 @@ class PaymentsModel(Base):
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     external_payment_id: Mapped[str] = mapped_column(String, nullable=True)
     order: Mapped["Order"] = relationship("Order", back_populates="payments")
-    payment_items: Mapped[List["PaymentsItem"]] = relationship("PaymentsItem", back_populates="payment", cascade="all, delete-orphan")
+    payment_items: Mapped[List["PaymentsItemModel"]] = relationship("PaymentsItemModel", back_populates="payment", cascade="all, delete-orphan")
     user: Mapped["UserModel"] = relationship("UserModel", back_populates="payments")
 
     @classmethod
@@ -75,7 +75,7 @@ class PaymentsModel(Base):
 
 
 class PaymentsItemModel(Base):
-    __tablename__ = "paymentsitem"
+    __tablename__ = "PaymentsItemModel"
 
     id: Mapped[int] = mapped_column(
         Integer,
@@ -83,7 +83,7 @@ class PaymentsItemModel(Base):
         autoincrement=True
     )
     payment_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("payments.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("PaymentsModel.id", ondelete="CASCADE"), nullable=False
     )
     order_item_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("order_items.id", ondelete="CASCADE"), nullable=False
@@ -92,5 +92,5 @@ class PaymentsItemModel(Base):
         Numeric(10, 2), nullable=False
     )
 
-    payment: Mapped["Payments"] = relationship("Payments", back_populates="payment_items")
+    payment: Mapped["PaymentsModel"] = relationship("PaymentsModel", back_populates="payment_items")
     order_item: Mapped["OrderItem"] = relationship("OrderItem", back_populates="payments_items")
