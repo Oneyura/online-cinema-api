@@ -20,7 +20,7 @@ from src.services.payments_services import clear_user_cart
 
 router = APIRouter()
 
-stripe.api_key = os.environ.get["STRIPE_API_KEY"]
+stripe.api_key = os.environ.get("STRIPE_API_KEY")
 
 @router.post("/create-checkout-session/")
 async def create_checkout_session(

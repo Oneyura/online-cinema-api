@@ -1,13 +1,11 @@
 from decimal import Decimal
 from http.client import HTTPException
-from fastapi import Request
 from sqlalchemy.orm import Session
 
 from src.database.models import UserModel
 from src.database.models.orders import Order
-from src.database.models.payments import PaymentsModel, PaymentStatus, PaymentsItemModel
 import stripe
-from database.models.payments import PaymentsModel, PaymentStatus, PaymentsItemModel
+from src.database.models.payments import PaymentsModel, PaymentStatus, PaymentsItemModel
 
 from src.database.models import CartItemModel
 
@@ -31,7 +29,7 @@ def create_payment_in_db(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    expected_amount = sum(item.price * item.quantity for item in order.items)
+    expected_amount = sum(item.price_at_order for item in order.items)
     if round(amount, 2) != round(expected_amount, 2):
         raise HTTPException(
             status_code=400,
@@ -73,7 +71,7 @@ def create_checkout_session_service(order: Order, user: UserModel):
         {
             "price_data": {
                 "currency": "USD",
-                "product_data": {"name": item.name},
+                "product_data": {"id": item.id}, #todo change to movie name
                 "unit_amount": int(item.price * 100),
             },
             "quantity": item.quantity,
