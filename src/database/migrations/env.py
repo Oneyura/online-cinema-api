@@ -9,6 +9,9 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from src.config.settings import settings
 from database.models.base import Base
 
+# Import all models so Alembic can detect them
+import src.database.models  # noqa
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config

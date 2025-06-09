@@ -53,6 +53,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      mailhog:
+        condition: service_started
     volumes:
       - ./src:/usr/src/app/src
     networks:
@@ -114,9 +116,12 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
     depends_on:
       - web
+      - flower
+      - minio
+      - mailhog
     networks:
       - cinema_network
 
@@ -138,14 +143,11 @@ services:
       - cinema_network
 
   mailhog:
-    restart: always
-    image: mailhog/mailhog:latest
+    image: druidfi/mailhog:1.0.1
     container_name: mailhog_cinema
     ports:
       - "8025:8025"
       - "1025:1025"
-    env_file:
-      - .env
     networks:
       - cinema_network
 
@@ -169,18 +171,20 @@ services:
       - cinema_network
 
   minio_mc:
-    build:
-      context: .
-      dockerfile: docker/minio_mc/Dockerfile
+    image: minio/mc
     container_name: minio_mc_cinema
-    command: ["/bin/sh", "-c", "/usr/src/app/commands/setup_minio.sh"]
-    volumes:
-      - ./commands:/usr/src/app/commands
     depends_on:
       minio:
         condition: service_healthy
     env_file:
       - .env
+    entrypoint: >
+      /bin/sh -c "
+      mc config host add myminio http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD};
+      mc mb --ignore-existing myminio/${MINIO_BUCKET};
+      mc policy set public myminio/${MINIO_BUCKET};
+      exit 0;
+      "
     networks:
       - cinema_network
 

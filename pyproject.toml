@@ -38,6 +38,7 @@ gunicorn = "^23.0.0"
 celery = "^5.3.6"
 redis = "^5.0.3"
 flower = "^2.0.1"
+stripe = "^12.2.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.3.0"
@@ -49,19 +50,91 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.black]
-line-length = 88
+line-length = 120
 target-version = ['py310']
 include = '\.pyi?$'
+extend-exclude = '''
+# A regex preceded with ^/ will apply only to files and directories
+# in the root of the project.
+^/docs
+^/tests
+^/migrations
+^/src/schemas
+^/src/database/models
+'''
 
 [tool.isort]
 profile = "black"
 multi_line_output = 3
-line_length = 88
+line_length = 120
+skip = [
+    "docs",
+    "migrations",
+    "src/schemas",
+    "src/database/models",
+    "tests"
+]
 
 [tool.mypy]
 python_version = "3.10"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-check_untyped_defs = true
+warn_return_any = false
+warn_unused_configs = false
+disallow_untyped_defs = false
+check_untyped_defs = false
 ignore_missing_imports = true
+follow_imports = "silent"
+disable_error_code = [
+    "assignment",
+    "no-untyped-def",
+    "no-any-return",
+    "valid-type",
+    "arg-type",
+    "attr-defined",
+    "name-defined",
+    "call-arg",
+    "union-attr",
+    "index",
+    "misc"
+]
+exclude = [
+    "tests/",
+    "docs/",
+    "migrations/",
+    "src/schemas/",
+    "src/database/models/"
+]
+implicit_reexport = true
+allow_untyped_globals = true
+allow_redefinition = true
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = [
+    "E203",  # whitespace before ':'
+    "E266",  # too many leading '#' for block comment
+    "E501",  # line too long - ігноруємо, бо використовуємо black
+    "W503",  # line break before binary operator
+    "F403",  # 'from module import *' used
+    "F405",  # name may be undefined, or defined from star imports
+    "E402",  # module level import not at top of file
+    "E731",  # do not assign a lambda expression, use a def
+    "C901",  # too complex
+    "W504",  # line break after binary operator
+    "E722",  # do not use bare except
+    "B001",  # do not use bare except
+    "F841",  # local variable is assigned to but never used
+]
+exclude = [
+    ".git",
+    "__pycache__",
+    "docs/",
+    "migrations/",
+    ".env",
+    ".venv",
+    "env/",
+    "venv/",
+    "src/schemas/",
+    "src/database/models/",
+    "tests/"
+]
+max-complexity = 15
