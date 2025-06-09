@@ -1,5 +1,4 @@
 from celery import Celery  # type: ignore
-from celery.schedules import crontab  # type: ignore
 
 # Initialize Celery
 celery = Celery(
@@ -20,20 +19,8 @@ celery.conf.update(
 # Import tasks module to ensure tasks are registered
 import src.tasks  # noqa
 
-# Basic periodic task
-celery.conf.beat_schedule = {
-    "cleanup-old-files": {
-        "task": "src.tasks.cleanup_old_files",
-        "schedule": crontab(hour="3", minute="0"),  # Every day at 3:00 AM
-    },
-}
-
-celery.conf.beat_schedule = {
-    "delete-expired-activation-tokens": {
-        "task": "src.tasks.delete_expired_activation_tokens",
-        "schedule": crontab(minute=0, hour="*/1"),  # Every hour
-    },
-}
+# Use the beat schedule from tasks.py
+celery.conf.beat_schedule = src.tasks.celery.conf.beat_schedule
 
 if __name__ == "__main__":
     celery.start()
