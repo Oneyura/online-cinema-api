@@ -5,11 +5,9 @@ from fastapi import Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import UserModel
-from exceptions.security import TokenExpiredError, InvalidTokenError
-from security.interfaces import JWTAuthManagerInterface
-from security.token import oauth2_scheme
-from security.token_manager import JWTAuthManager
+from src.database.models import UserModel
+from src.exceptions.security import TokenExpiredError, InvalidTokenError
+from src.security.token import oauth2_scheme
 from src.config.settings import BaseAppSettings, Settings, TestSettings
 from src.notifications.emails import EmailSender
 from src.notifications.interfaces import EmailSenderInterface

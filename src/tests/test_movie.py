@@ -7,19 +7,15 @@ from uuid import uuid4
 from datetime import datetime
 from decimal import Decimal
 
-# Впевненість в імпортах: використовуємо абсолютні імпорти
+# Важливо: імпортуйте Order та OrderItem безпосередньо з їхніх файлів,
+# якщо у вас є __init__.py, який агрегує моделі
+from src.database.models.orders import Order, OrderItem
 from src.database.models.movies import (
     MovieModel, GenreModel, DirectorModel, ActorModel, CertificationModel,
-    CommentModel, MovieLikeModel, MovieRatingModel, FavoriteMovieModel, PurchaseModel
+    CommentModel, MovieLikeModel, MovieRatingModel, FavoriteMovieModel
 )
-from src.database.models.accounts import UserModel
-from src.schemas.movies import MovieCreate, GenreCreate, ActorCreate, DirectorCreate, CertificationCreate
+from src.database.models.accounts import UserModel # Залишаємо UserModel для типхінтів, якщо потрібно
 
-# import the app instance from main.py if you need to override dependencies
-from src.main import app
-from src.config.dependencies import get_current_user # for mocking/overriding get_current_user
-
-# Рекомендується використовувати pytest-asyncio для асинхронних тестів
 pytestmark = pytest.mark.asyncio
 
 class TestCertificationCRUD:
@@ -336,7 +332,8 @@ class TestMovieCRUD:
 
     async def test_delete_movie_with_purchase(self, moderator_client: AsyncClient, db_session: AsyncSession, create_test_user):
         """Тест видалення фільму, який був придбаний (має бути заборонено)."""
-        user = await create_test_user("buyer@example.com", "buyerpass") # Ensure password is provided for user creation
+        # Fix for create_test_user and using user_model
+        user_model, _ = await create_test_user("buyer@example.com", "buyerpass", "user")
 
         cert = CertificationModel(name="PG")
         db_session.add(cert)
@@ -351,8 +348,23 @@ class TestMovieCRUD:
         await db_session.commit()
         await db_session.refresh(movie_purchased)
 
-        purchase = PurchaseModel(user_id=user.id, movie_id=movie_purchased.id, purchase_date=datetime.now(), price=Decimal("15.00"))
-        db_session.add(purchase)
+        # Correctly create Order and OrderItem based on the new model structure
+        order = Order(
+            user_id=user_model.id,
+            created_at=datetime.utcnow(),
+            status="COMPLETED", # Або "PENDING", залежно від логіки, яку ви хочете протестувати
+            total_amount=Decimal("15.00")
+        )
+        db_session.add(order)
+        await db_session.commit() # Фіксуємо замовлення, щоб отримати order.id
+        await db_session.refresh(order)
+
+        order_item = OrderItem(
+            order_id=order.id,
+            movie_id=movie_purchased.id,
+            price_at_order=Decimal("15.00")
+        )
+        db_session.add(order_item)
         await db_session.commit()
 
         response = await moderator_client.delete(f"/movies/{movie_purchased.id}")
@@ -366,7 +378,7 @@ class TestMovieCRUD:
 class TestMovieInteractions:
     """Група тестів для взаємодії користувачів з фільмами (лайки, коментарі, рейтинги, обрані)."""
 
-    async def test_like_movie(self, authenticated_client: AsyncClient, db_session: AsyncSession):
+    async def test_like_movie(self, authenticated_user_client: AsyncClient, db_session: AsyncSession):
         """Тест лайка фільму авторизованим користувачем."""
         cert = CertificationModel(name="PG")
         db_session.add(cert)
@@ -378,7 +390,7 @@ class TestMovieInteractions:
         await db_session.commit()
         await db_session.refresh(movie)
 
-        response = await authenticated_client.post(f"/movies/{movie.id}/like?is_liked=true")
+        response = await authenticated_user_client.post(f"/movies/{movie.id}/like?is_liked=true")
         assert response.status_code == 200
         assert response.json()["is_liked"] is True
         assert response.json()["movie_id"] == movie.id
@@ -386,7 +398,7 @@ class TestMovieInteractions:
         like_in_db = await db_session.execute(select(MovieLikeModel).filter_by(movie_id=movie.id))
         assert like_in_db.scalars().first() is not None
 
-    async def test_dislike_movie(self, authenticated_client: AsyncClient, db_session: AsyncSession):
+    async def test_dislike_movie(self, authenticated_user_client: AsyncClient, db_session: AsyncSession):
         """Тест дизлайка фільму авторизованим користувачем."""
         cert = CertificationModel(name="PG")
         db_session.add(cert)
@@ -398,7 +410,7 @@ class TestMovieInteractions:
         await db_session.commit()
         await db_session.refresh(movie)
 
-        response = await authenticated_client.post(f"/movies/{movie.id}/like?is_liked=false")
+        response = await authenticated_user_client.post(f"/movies/{movie.id}/like?is_liked=false")
         assert response.status_code == 200
         assert response.json()["is_liked"] is False
         assert response.json()["movie_id"] == movie.id
@@ -406,7 +418,7 @@ class TestMovieInteractions:
         dislike_in_db = await db_session.execute(select(MovieLikeModel).filter_by(movie_id=movie.id))
         assert dislike_in_db.scalars().first() is not None
 
-    async def test_update_like_status(self, authenticated_client: AsyncClient, db_session: AsyncSession):
+    async def test_update_like_status(self, authenticated_user_client: AsyncClient, db_session: AsyncSession):
         """Тест оновлення статусу лайка/дизлайка."""
         cert = CertificationModel(name="PG")
         db_session.add(cert)
@@ -418,16 +430,16 @@ class TestMovieInteractions:
         await db_session.commit()
         await db_session.refresh(movie)
 
-        await authenticated_client.post(f"/movies/{movie.id}/like?is_liked=true")
+        await authenticated_user_client.post(f"/movies/{movie.id}/like?is_liked=true")
 
-        response = await authenticated_client.post(f"/movies/{movie.id}/like?is_liked=false")
+        response = await authenticated_user_client.post(f"/movies/{movie.id}/like?is_liked=false")
         assert response.status_code == 200
         assert response.json()["is_liked"] is False
 
         like_in_db = await db_session.execute(select(MovieLikeModel).filter_by(movie_id=movie.id))
         assert like_in_db.scalars().first().is_liked is False
 
-    async def test_write_comment(self, authenticated_client: AsyncClient, db_session: AsyncSession, authenticated_user: UserModel):
+    async def test_write_comment(self, authenticated_user_client: AsyncClient, db_session: AsyncSession, authenticated_user: UserModel):
         """Тест написання коментаря до фільму."""
         cert = CertificationModel(name="PG")
         db_session.add(cert)
@@ -440,7 +452,7 @@ class TestMovieInteractions:
         await db_session.refresh(movie)
 
         comment_data = {"text": "This movie is amazing!"}
-        response = await authenticated_client.post(f"/movies/{movie.id}/comments", json=comment_data)
+        response = await authenticated_user_client.post(f"/movies/{movie.id}/comments", json=comment_data)
 
         assert response.status_code == 200
         assert response.json()["text"] == "This movie is amazing!"
@@ -451,10 +463,11 @@ class TestMovieInteractions:
         comment_in_db = await db_session.execute(select(CommentModel).filter_by(movie_id=movie.id, user_id=authenticated_user.id))
         assert comment_in_db.scalars().first() is not None
 
-    async def test_get_movie_comments(self, authenticated_client: AsyncClient, db_session: AsyncSession, create_test_user):
+    async def test_get_movie_comments(self, authenticated_user_client: AsyncClient, db_session: AsyncSession, create_test_user):
         """Тест отримання коментарів до фільму."""
-        user1 = await create_test_user("user1@example.com", "user1pass")
-        user2 = await create_test_user("user2@example.com", "user2pass")
+        # Виправлено виклик create_test_user та передачу ролі/username
+        user1_model, _ = await create_test_user("user1@example.com", "user1pass", "user", username="UserOne")
+        user2_model, _ = await create_test_user("user2@example.com", "user2pass", "user", username="UserTwo")
 
         cert = CertificationModel(name="PG")
         db_session.add(cert)
@@ -467,12 +480,12 @@ class TestMovieInteractions:
         await db_session.refresh(movie)
 
         # Ensure comments have different creation times to test sorting
-        comment1 = CommentModel(user_id=user1.id, movie_id=movie.id, text="Great movie!", created_at=datetime(2023, 1, 1, 10, 0, 0))
-        comment2 = CommentModel(user_id=user2.id, movie_id=movie.id, text="Really enjoyed it.", created_at=datetime(2023, 1, 1, 11, 0, 0))
+        comment1 = CommentModel(user_id=user1_model.id, movie_id=movie.id, text="Great movie!", created_at=datetime(2023, 1, 1, 10, 0, 0))
+        comment2 = CommentModel(user_id=user2_model.id, movie_id=movie.id, text="Really enjoyed it.", created_at=datetime(2023, 1, 1, 11, 0, 0))
         db_session.add_all([comment1, comment2])
         await db_session.commit()
 
-        response = await authenticated_client.get(f"/movies/{movie.id}/comments")
+        response = await authenticated_user_client.get(f"/movies/{movie.id}/comments")
         assert response.status_code == 200
         comments = response.json()
         assert len(comments) == 2
@@ -482,7 +495,7 @@ class TestMovieInteractions:
         assert comments[0]["user"]["username"] == "UserTwo"
         assert comments[1]["user"]["username"] == "UserOne"
 
-    async def test_add_movie_to_favorites(self, authenticated_client: AsyncClient, db_session: AsyncSession):
+    async def test_add_movie_to_favorites(self, authenticated_user_client: AsyncClient, db_session: AsyncSession):
         """Тест додавання фільму до обраних."""
         cert = CertificationModel(name="PG")
         db_session.add(cert)
@@ -494,7 +507,7 @@ class TestMovieInteractions:
         await db_session.commit()
         await db_session.refresh(movie)
 
-        response = await authenticated_client.post(f"/movies/{movie.id}/favorite")
+        response = await authenticated_user_client.post(f"/movies/{movie.id}/favorite")
         assert response.status_code == 200
         assert response.json()["movie_id"] == movie.id
         assert "id" in response.json()
@@ -502,7 +515,7 @@ class TestMovieInteractions:
         fav_in_db = await db_session.execute(select(FavoriteMovieModel).filter_by(movie_id=movie.id))
         assert fav_in_db.scalars().first() is not None
 
-    async def test_remove_movie_from_favorites(self, authenticated_client: AsyncClient, db_session: AsyncSession, authenticated_user: UserModel):
+    async def test_remove_movie_from_favorites(self, authenticated_user_client: AsyncClient, db_session: AsyncSession, authenticated_user: UserModel):
         """Тест видалення фільму з обраних."""
         # The authenticated_user fixture should provide the user
         user = authenticated_user
@@ -522,17 +535,17 @@ class TestMovieInteractions:
         db_session.add(favorite)
         await db_session.commit()
 
-        # No need to mock get_current_user if authenticated_client is already set up to use authenticated_user
+        # No need to mock get_current_user if authenticated_user_client is already set up to use authenticated_user
         # app.dependency_overrides[app.dependency_overrides[get_current_user]] = lambda: user # This line is problematic and likely incorrect syntax.
 
-        response = await authenticated_client.delete(f"/movies/{movie.id}/favorite")
+        response = await authenticated_user_client.delete(f"/movies/{movie.id}/favorite")
         assert response.status_code == 204
 
         fav_in_db = await db_session.execute(select(FavoriteMovieModel).filter_by(movie_id=movie.id, user_id=user.id))
         assert fav_in_db.scalars().first() is None
 
 
-    async def test_rate_movie(self, authenticated_client: AsyncClient, db_session: AsyncSession, authenticated_user: UserModel):
+    async def test_rate_movie(self, authenticated_user_client: AsyncClient, db_session: AsyncSession, authenticated_user: UserModel):
         """Тест оцінювання фільму."""
         cert = CertificationModel(name="PG")
         db_session.add(cert)
@@ -542,10 +555,10 @@ class TestMovieInteractions:
         movie = MovieModel(uuid=uuid4(), name="Rateable Movie", year=2016, time=130, imdb=7.9, votes=800, description="A movie to rate.", price=Decimal("13.00"), certification_id=cert.id)
         db_session.add(movie)
         await db_session.commit()
-        await db_session.refresh(movie)
+        db_session.refresh(movie)
 
         rating_data = {"rating": 8}
-        response = await authenticated_client.post(f"/movies/{movie.id}/rate", json=rating_data)
+        response = await authenticated_user_client.post(f"/movies/{movie.id}/rate", json=rating_data)
         assert response.status_code == 200
         assert response.json()["rating"] == 8
         assert response.json()["movie_id"] == movie.id

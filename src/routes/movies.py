@@ -20,12 +20,13 @@ from src.database.models.movies import (
     MoviesDirectorsModel,
     MoviesActorsModel
 )
+# Оновлено: Імпортуємо Order та OrderItem з src.database.models.orders
+from src.database.models.orders import Order, OrderItem
 from src.database.models.movies import (
     CommentModel,
     MovieLikeModel,
     MovieRatingModel,
     FavoriteMovieModel,
-    PurchaseModel,
     UserModel
 )
 from src.schemas.movies import (
@@ -209,7 +210,7 @@ async def like_dislike_movie(
 
     # Check for existing like/dislike
     existing_like = await db.execute(
-        select(MovieLikeModel).filter_by(user_id=current_user, movie_id=movie_id)
+        select(MovieLikeModel).filter_by(user_id=current_user.id, movie_id=movie_id) # Використовуємо current_user.id
     )
     existing_like = existing_like.scalars().first()
 
@@ -229,7 +230,7 @@ async def like_dislike_movie(
     else:
         # Create new like/dislike
         new_like = MovieLikeModel(
-            user_id=current_user,
+            user_id=current_user.id, # Використовуємо current_user.id
             movie_id=movie_id,
             is_liked=is_liked
         )
@@ -256,7 +257,7 @@ async def write_comment(
         raise HTTPException(status_code=404, detail="Movie not found")
 
     new_comment = CommentModel(
-        user_id=current_user,
+        user_id=current_user.id, # Використовуємо current_user.id
         movie_id=movie_id,
         text=comment.text
     )
@@ -309,12 +310,12 @@ async def add_movie_to_favorites(
         raise HTTPException(status_code=404, detail="Movie not found")
 
     existing_favorite = await db.execute(
-        select(FavoriteMovieModel).filter_by(user_id=current_user, movie_id=movie_id)
+        select(FavoriteMovieModel).filter_by(user_id=current_user.id, movie_id=movie_id) # Використовуємо current_user.id
     )
     if existing_favorite.scalars().first():
         raise HTTPException(status_code=409, detail="Movie already in favorites")
 
-    new_favorite = FavoriteMovieModel(user_id=current_user, movie_id=movie_id)
+    new_favorite = FavoriteMovieModel(user_id=current_user.id, movie_id=movie_id) # Використовуємо current_user.id
     db.add(new_favorite)
     await db.commit()
     await db.refresh(new_favorite)
@@ -331,7 +332,7 @@ async def remove_movie_from_favorites(
     Remove a movie from the current user's favorites list.
     """
     favorite_item = await db.execute(
-        select(FavoriteMovieModel).filter_by(user_id=current_user, movie_id=movie_id)
+        select(FavoriteMovieModel).filter_by(user_id=current_user.id, movie_id=movie_id) # Використовуємо current_user.id
     )
     favorite_item = favorite_item.scalars().first()
 
@@ -364,7 +365,7 @@ async def get_favorite_movies(
     # Start with a query to fetch favorite movies for the current user
     # Join with MovieModel to enable filtering/sorting on movie attributes
     query = select(MovieModel).join(FavoriteMovieModel).filter(
-        FavoriteMovieModel.user_id == current_user
+        FavoriteMovieModel.user_id == current_user.id # Використовуємо current_user.id
     )
 
     # Apply filters and sorting using the helper function
@@ -441,7 +442,7 @@ async def rate_movie(
 
     # Check for existing rating by this user for this movie
     existing_rating = await db.execute(
-        select(MovieRatingModel).filter_by(user_id=current_user, movie_id=movie_id)
+        select(MovieRatingModel).filter_by(user_id=current_user.id, movie_id=movie_id) # Використовуємо current_user.id
     )
     existing_rating = existing_rating.scalars().first()
 
@@ -603,9 +604,9 @@ async def delete_movie(
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
 
-    # Check for purchases
+    # Оновлено: Перевірка на наявність замовлень за допомогою OrderItem
     purchases_count = await db.execute(
-        select(func.count(PurchaseModel.id)).filter_by(movie_id=movie_id)
+        select(func.count(OrderItem.id)).filter_by(movie_id=movie_id)
     )
     if purchases_count.scalar_one() > 0:
         raise HTTPException(

@@ -7,7 +7,9 @@ from datetime import datetime
 
 from sqlalchemy.orm.attributes import Mapped
 
-from src.database import Base
+from src.database.models.movies import MovieModel
+from src.database.models.payments import Payments, PaymentsItem
+from src.database.models import Base
 
 
 class OrderStatusEnum(enum.Enum):
@@ -39,4 +41,6 @@ class OrderItem(Base):
 
     order = relationship("Order", back_populates="items")
     payments_items: Mapped[List["PaymentsItem"]] = relationship("PaymentsItem", back_populates="order_item")
+    movie: Mapped["MovieModel"] = relationship("MovieModel", back_populates="order_item")
+
 

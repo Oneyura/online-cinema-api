@@ -15,11 +15,8 @@ from sqlalchemy import (
 import datetime
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 
-from src.database.models import Order
 from src.database.models.accounts import UserModel
 from src.database.models.base import Base
-
-
 
 MoviesGenresModel = Table(
     "movies_genres",
@@ -71,7 +68,7 @@ class GenreModel(Base):
         return f"<Genre(id='{self.id}', name='{self.name}')>"
 
 
-class ActorModel(Base): # Updated class name
+class ActorModel(Base):
     __tablename__ = "actors"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -145,8 +142,8 @@ class MovieModel(Base):
         "FavoriteMovieModel",
         back_populates="movie"
     )
-    purchases: Mapped[List["Order"]] = relationship(
-        "Order",
+    purchases: Mapped[List["OrderItem"]] = relationship(
+        "OrderItem",
         back_populates="movie"
     )
     certification_id: Mapped[int] = mapped_column(

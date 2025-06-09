@@ -33,12 +33,12 @@ aiosmtplib = "^4.0.0"
 asyncpg = "^0.30.0"
 aiosqlite = "^0.21.0"
 aioboto3 = "^13.4.0"
-pytest-asyncio = "^0.25.3"
 gunicorn = "^23.0.0"
 celery = "^5.3.6"
 redis = "^5.0.3"
 flower = "^2.0.1"
 stripe = "^12.2.0"
+pytest-asyncio = "^1.0.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.3.0"
