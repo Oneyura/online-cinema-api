@@ -7,7 +7,6 @@ from src.database.models.accounts import UserModel
 
 from sqlalchemy.sql.sqltypes import Numeric
 
-from src.database.base import Base
 
 from sqlalchemy import (
     ForeignKey,
@@ -27,6 +26,8 @@ from sqlalchemy.orm import (
     relationship,
     validates
 )
+
+from src.database.models.base import Base
 
 
 class PaymentStatus(enum.Enum):

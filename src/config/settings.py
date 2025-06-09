@@ -11,6 +11,8 @@ class BaseAppSettings(BaseSettings):
     # Base directory
     BASE_DIR: Path = Path(__file__).parent.parent
 
+    DB_ECHO_LOG: bool = os.getenv("DB_ECHO_LOG", "False").lower() == "true"
+
     # Email settings
     EMAIL_HOST: str = os.getenv("EMAIL_HOST", "mailhog")
     EMAIL_PORT: int = int(os.getenv("EMAIL_PORT", 1025))
