@@ -4,6 +4,8 @@ from typing import AsyncGenerator
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from security.interfaces import JWTAuthManagerInterface
+from security.token_manager import JWTAuthManager
 from src.config.settings import BaseAppSettings, Settings, TestSettings
 from src.notifications.emails import EmailSender
 from src.notifications.interfaces import EmailSenderInterface
@@ -56,6 +58,7 @@ def get_minio_client(
         bucket_name=settings.MINIO_BUCKET_NAME,
     )
 
+  
 def get_jwt_auth_manager(settings: BaseAppSettings = Depends(get_settings)) -> JWTAuthManagerInterface:
     """
     Create and return a JWT authentication manager instance.
@@ -76,4 +79,4 @@ def get_jwt_auth_manager(settings: BaseAppSettings = Depends(get_settings)) -> J
         secret_key_access=settings.SECRET_KEY_ACCESS,
         secret_key_refresh=settings.SECRET_KEY_REFRESH,
         algorithm=settings.JWT_SIGNING_ALGORITHM
-    )
+
