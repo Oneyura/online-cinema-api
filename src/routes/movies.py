@@ -9,8 +9,8 @@ from uuid import UUID
 
 from sqlalchemy.orm import relationship, selectinload
 
-from database import get_db
-from database.models.movies import (
+from src.config.dependencies import get_db
+from src.database.models.movies import (
     MovieModel,
     GenreModel,
     DirectorModel,
@@ -20,7 +20,7 @@ from database.models.movies import (
     MoviesDirectorsModel,
     MoviesActorsModel
 )
-from database.models.movies import (
+from src.database.models.movies import (
     CommentModel,
     MovieLikeModel,
     MovieRatingModel,
@@ -147,7 +147,7 @@ async def browse_movies(
         actor_name: Optional[str] = Query(None, description="Filter by actor's name"),
         sort_by: Literal["price", "year", "imdb", "votes", "name"] = Query("name", description="Attribute to sort by"),
         sort_order: Literal["asc", "desc"] = Query("asc", description="Sort order (ascending or descending)")
-) -> List[MovieResponseNested]: # Анотація типу повернення
+) -> List[MovieResponseNested]:
     """
     Browse the movie catalog with pagination, search, filter, and sort options.
     """
@@ -172,7 +172,7 @@ async def browse_movies(
 async def get_movie_details(
         movie_id: int,
         db: AsyncSession = Depends(get_db)
-) -> MovieResponse: # Анотація типу повернення
+) -> MovieResponse:
     """
     View detailed description of a specific movie.
     """
@@ -198,7 +198,7 @@ async def like_dislike_movie(
         is_liked: bool = Query(..., description="True for like, False for dislike"),
         current_user: UserModel = Depends(get_current_user),  # Requires authentication
         db: AsyncSession = Depends(get_db)
-) -> MovieLikeResponse: # Анотація типу повернення
+) -> MovieLikeResponse:
     """
     Like or dislike a movie. A user can only have one like/dislike status per movie.
     """
@@ -209,7 +209,7 @@ async def like_dislike_movie(
 
     # Check for existing like/dislike
     existing_like = await db.execute(
-        select(MovieLikeModel).filter_by(user_id=current_user.id, movie_id=movie_id)
+        select(MovieLikeModel).filter_by(user_id=current_user, movie_id=movie_id)
     )
     existing_like = existing_like.scalars().first()
 
@@ -229,7 +229,7 @@ async def like_dislike_movie(
     else:
         # Create new like/dislike
         new_like = MovieLikeModel(
-            user_id=current_user.id,
+            user_id=current_user,
             movie_id=movie_id,
             is_liked=is_liked
         )
@@ -246,7 +246,7 @@ async def write_comment(
         comment: CommentCreate,
         current_user: UserModel = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
-) -> CommentResponse: # Анотація типу повернення
+) -> CommentResponse:
     """
     Write a comment on a movie.
     """
@@ -256,7 +256,7 @@ async def write_comment(
         raise HTTPException(status_code=404, detail="Movie not found")
 
     new_comment = CommentModel(
-        user_id=current_user.id,
+        user_id=current_user,
         movie_id=movie_id,
         text=comment.text
     )
@@ -275,19 +275,19 @@ async def get_movie_comments(
         db: AsyncSession = Depends(get_db),
         page: int = Query(1, ge=1),
         limit: int = Query(10, ge=1, le=100)
-) -> List[CommentResponse]: # Анотація типу повернення
+) -> List[CommentResponse]:
     """
     Get all comments for a specific movie.
     """
     query = select(CommentModel).filter(CommentModel.movie_id == movie_id)
 
-    query = query.order_by(CommentModel.created_at.desc())  # Newest first
+    query = query.order_by(CommentModel.created_at.desc())
 
     offset = (page - 1) * limit
     query = query.offset(offset).limit(limit)
 
     # Eager load user for comments
-    query = query.options(selectinload(CommentModel.user)) # ВИПРАВЛЕНО ЗНОВУ
+    query = query.options(selectinload(CommentModel.user))
 
     result = await db.execute(query)
     comments = result.scalars().all()
@@ -300,7 +300,7 @@ async def add_movie_to_favorites(
         movie_id: int,
         current_user: UserModel = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
-) -> FavoriteMovieResponse: # Анотація типу повернення
+) -> FavoriteMovieResponse:
     """
     Add a movie to the current user's favorites list.
     """
@@ -309,12 +309,12 @@ async def add_movie_to_favorites(
         raise HTTPException(status_code=404, detail="Movie not found")
 
     existing_favorite = await db.execute(
-        select(FavoriteMovieModel).filter_by(user_id=current_user.id, movie_id=movie_id)
+        select(FavoriteMovieModel).filter_by(user_id=current_user, movie_id=movie_id)
     )
     if existing_favorite.scalars().first():
         raise HTTPException(status_code=409, detail="Movie already in favorites")
 
-    new_favorite = FavoriteMovieModel(user_id=current_user.id, movie_id=movie_id)
+    new_favorite = FavoriteMovieModel(user_id=current_user, movie_id=movie_id)
     db.add(new_favorite)
     await db.commit()
     await db.refresh(new_favorite)
@@ -326,12 +326,12 @@ async def remove_movie_from_favorites(
         movie_id: int,
         current_user: UserModel = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
-) -> None: # Анотація типу повернення
+) -> None:
     """
     Remove a movie from the current user's favorites list.
     """
     favorite_item = await db.execute(
-        select(FavoriteMovieModel).filter_by(user_id=current_user.id, movie_id=movie_id)
+        select(FavoriteMovieModel).filter_by(user_id=current_user, movie_id=movie_id)
     )
     favorite_item = favorite_item.scalars().first()
 
@@ -340,7 +340,6 @@ async def remove_movie_from_favorites(
 
     await db.delete(favorite_item)
     await db.commit()
-    return
 
 
 @router.get("/favorites", response_model=List[MovieResponseNested])
@@ -358,14 +357,14 @@ async def get_favorite_movies(
         actor_name: Optional[str] = Query(None),
         sort_by: Literal["price", "year", "imdb", "votes", "name"] = Query("name"),
         sort_order: Literal["asc", "desc"] = Query("asc")
-) -> List[MovieResponseNested]: # Анотація типу повернення
+) -> List[MovieResponseNested]:
     """
     Get the current user's favorite movies with search, filter, and sort options.
     """
     # Start with a query to fetch favorite movies for the current user
     # Join with MovieModel to enable filtering/sorting on movie attributes
     query = select(MovieModel).join(FavoriteMovieModel).filter(
-        FavoriteMovieModel.user_id == current_user.id
+        FavoriteMovieModel.user_id == current_user
     )
 
     # Apply filters and sorting using the helper function
@@ -383,7 +382,7 @@ async def get_favorite_movies(
 
 # --- View Genres with Movie Count and Filter by Genre ---
 @router.get("/genres", response_model=List[GenreResponse])
-async def get_genres_with_counts(db: AsyncSession = Depends(get_db)) -> List[GenreResponse]: # Анотація типу повернення
+async def get_genres_with_counts(db: AsyncSession = Depends(get_db)) -> List[GenreResponse]:
     """
     Get a list of all genres with the count of movies in each.
     """
@@ -404,7 +403,7 @@ async def get_movies_by_genre(
         db: AsyncSession = Depends(get_db),
         page: int = Query(1, ge=1),
         limit: int = Query(10, ge=1, le=100)
-) -> List[MovieResponseNested]: # Анотація типу повернення
+) -> List[MovieResponseNested]:
     """
     Get all movies belonging to a specific genre.
     """
@@ -432,7 +431,7 @@ async def rate_movie(
         rating_data: MovieRatingCreate,
         current_user: UserModel = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
-) -> MovieRatingResponse: # Анотація типу повернення
+) -> MovieRatingResponse:
     """
     Rate a movie on a 10-point scale. Users can update their rating.
     """
@@ -442,7 +441,7 @@ async def rate_movie(
 
     # Check for existing rating by this user for this movie
     existing_rating = await db.execute(
-        select(MovieRatingModel).filter_by(user_id=current_user.id, movie_id=movie_id)
+        select(MovieRatingModel).filter_by(user_id=current_user, movie_id=movie_id)
     )
     existing_rating = existing_rating.scalars().first()
 
@@ -473,7 +472,7 @@ async def create_movie(
         movie: MovieCreate,
         db: AsyncSession = Depends(get_db),
         moderator: UserModel = Depends(get_current_moderator)  # Requires moderator role
-) -> MovieResponse: # Анотація типу повернення
+) -> MovieResponse:
     """
     Create a new movie (Moderator only).
     """
@@ -537,7 +536,7 @@ async def update_movie(
         movie_update: MovieUpdate,
         db: AsyncSession = Depends(get_db),
         moderator: UserModel = Depends(get_current_moderator)  # Requires moderator role
-) -> MovieResponse: # Анотація типу повернення
+) -> MovieResponse:
     """
     Update an existing movie by ID (Moderator only).
     """
@@ -594,8 +593,8 @@ async def update_movie(
 async def delete_movie(
         movie_id: int,
         db: AsyncSession = Depends(get_db),
-        moderator: UserModel = Depends(get_current_moderator)  # Requires moderator role
-) -> None: # Анотація типу повернення
+        moderator: UserModel = Depends(get_current_moderator)
+) -> None:
     """
     Delete a movie by ID. Prevents deletion if any user has purchased it (Moderator only).
     """
@@ -629,7 +628,7 @@ async def create_genre(
         genre: GenreCreate,
         db: AsyncSession = Depends(get_db),
         moderator: UserModel = Depends(get_current_moderator)
-) -> GenreResponse: # Анотація типу повернення
+) -> GenreResponse:
     """Create a new genre (Moderator only)."""
     existing_genre = await db.execute(select(GenreModel).filter_by(name=genre.name))
     if existing_genre.scalars().first():
@@ -651,7 +650,7 @@ async def update_genre(
         genre_update: GenreCreate,  # Re-use Create schema for update fields
         db: AsyncSession = Depends(get_db),
         moderator: UserModel = Depends(get_current_moderator)
-) -> GenreResponse: # Анотація типу повернення
+) -> GenreResponse:
     """Update an existing genre (Moderator only)."""
     genre = await db.execute(select(GenreModel).filter_by(id=genre_id))
     genre = genre.scalars().first()
@@ -681,10 +680,10 @@ async def delete_genre(
         genre_id: int,
         db: AsyncSession = Depends(get_db),
         moderator: UserModel = Depends(get_current_moderator)
-) -> None: # Анотація типу повернення
+) -> None:
     """Delete a genre (Moderator only)."""
     genre = await db.execute(select(GenreModel).filter_by(id=genre_id))
-    genre_obj = genre.scalars().first() # Отримати об'єкт для видалення
+    genre_obj = genre.scalars().first()
     if not genre_obj:
         raise HTTPException(status_code=404, detail="Genre not found")
 
@@ -694,7 +693,6 @@ async def delete_genre(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Could not delete genre: {e}")
-    return
 
 
 # --- CRUD for Actors (Moderator only) ---
@@ -703,7 +701,7 @@ async def create_actor(
         actor: ActorCreate,
         db: AsyncSession = Depends(get_db),
         moderator: UserModel = Depends(get_current_moderator)
-) -> ActorResponse: # Анотація типу повернення
+) -> ActorResponse:
     """Create a new actor (Moderator only)."""
     existing_actor = await db.execute(select(ActorModel).filter_by(name=actor.name))
     if existing_actor.scalars().first():
@@ -725,7 +723,7 @@ async def update_actor(
         actor_update: ActorCreate,
         db: AsyncSession = Depends(get_db),
         moderator: UserModel = Depends(get_current_moderator)
-) -> ActorResponse: # Анотація типу повернення
+) -> ActorResponse:
     """Update an existing actor (Moderator only)."""
     actor = await db.execute(select(ActorModel).filter_by(id=actor_id))
     actor = actor.scalars().first()
@@ -745,7 +743,7 @@ async def update_actor(
         await db.refresh(actor)
         return actor
     except Exception as e:
-        await db.rollback() # Важливо: відкат транзакції у разі помилки
+        await db.rollback()
         raise HTTPException(status_code=400, detail=f"Could not update actor: {e}")
 
 
@@ -754,7 +752,7 @@ async def delete_actor(
         actor_id: int,
         db: AsyncSession = Depends(get_db),
         moderator: UserModel = Depends(get_current_moderator)
-) -> None: # Анотація типу повернення
+) -> None:
     """Delete an actor (Moderator only)."""
     actor = await db.execute(select(ActorModel).filter_by(id=actor_id))
     actor = actor.scalars().first()
@@ -769,11 +767,6 @@ async def delete_actor(
         raise HTTPException(status_code=500, detail=f"Could not delete actor: {e}")
     return
 
-# --- CRUD for Directors (Moderator only) - Similar to Actors, left for you to implement
-# @router.post("/directors", ...)
-# @router.put("/directors/{director_id}", ...)
-# @router.delete("/directors/{director_id}", ...)
-
 
 # --- CRUD for Certifications (Moderator only) - Adding these based on import CertificationCreate
 @router.post("/certifications", response_model=CertificationResponse, status_code=status.HTTP_201_CREATED)
@@ -781,7 +774,7 @@ async def create_certification(
         certification: CertificationCreate,
         db: AsyncSession = Depends(get_db),
         moderator: UserModel = Depends(get_current_moderator)
-) -> CertificationResponse: # Анотація типу повернення
+) -> CertificationResponse:
     """Create a new certification (Moderator only)."""
     existing_cert = await db.execute(select(CertificationModel).filter_by(name=certification.name))
     if existing_cert.scalars().first():
@@ -803,7 +796,7 @@ async def update_certification(
         cert_update: CertificationCreate,
         db: AsyncSession = Depends(get_db),
         moderator: UserModel = Depends(get_current_moderator)
-) -> CertificationResponse: # Анотація типу повернення
+) -> CertificationResponse:
     """Update an existing certification (Moderator only)."""
     cert = await db.execute(select(CertificationModel).filter_by(id=cert_id))
     cert = cert.scalars().first()
@@ -832,7 +825,7 @@ async def delete_certification(
         cert_id: int,
         db: AsyncSession = Depends(get_db),
         moderator: UserModel = Depends(get_current_moderator)
-) -> None: # Анотація типу повернення
+) -> None:
     """Delete a certification (Moderator only)."""
     cert = await db.execute(select(CertificationModel).filter_by(id=cert_id))
     cert = cert.scalars().first()
@@ -845,4 +838,3 @@ async def delete_certification(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Could not delete certification: {e}")
-    return

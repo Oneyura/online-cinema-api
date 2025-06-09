@@ -3,7 +3,6 @@ import enum
 from decimal import Decimal
 from typing import List
 
-from src.database.base import Base
 
 from sqlalchemy import (
     ForeignKey,
@@ -23,6 +22,8 @@ from sqlalchemy.orm import (
     relationship,
     validates
 )
+
+from src.database.models.base import Base
 
 
 class PaymentStatus(enum.Enum):

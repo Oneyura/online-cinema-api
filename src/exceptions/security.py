@@ -7,7 +7,7 @@ class BaseSecurityError(Exception):
         super().__init__(message)
 
 
-class   TokenExpiredError(BaseSecurityError):
+class TokenExpiredError(BaseSecurityError):
     """Raised when a token has expired."""
 
     def __init__(self, message="Token has expired."):

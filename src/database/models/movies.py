@@ -15,7 +15,7 @@ from sqlalchemy import (
 import datetime
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 
-from database.models.accounts import UserModel
+from src.database.models.accounts import UserModel
 from src.database.models.base import Base
 
 
