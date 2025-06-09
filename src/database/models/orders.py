@@ -38,5 +38,6 @@ class OrderItem(Base):
     price_at_order = Column(Numeric(10, 2), nullable=False)
 
     order = relationship("Order", back_populates="items")
+    movie = relationship("Movie", back_populates="order_items")
     payments_items: Mapped[List["PaymentsItem"]] = relationship("PaymentsItem", back_populates="order_item")
 
