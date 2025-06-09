@@ -22,16 +22,12 @@ from src.services.payments_services import create_checkout_session_service
 router = APIRouter()
 
 
-@router.post(
-    "/users/{user_id}/orders/",
-    response_model=OrderResponseSchema,
-    status_code=status.HTTP_201_CREATED
-)
+@router.post("/users/{user_id}/orders/", response_model=OrderResponseSchema, status_code=status.HTTP_201_CREATED)
 async def create_order(
-        user_id: int,
-        token: str = Depends(get_token),
-        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
-        db: AsyncSession = Depends(get_db)
+    user_id: int,
+    token: str = Depends(get_token),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+    db: AsyncSession = Depends(get_db),
 ) -> OrderResponseSchema:
     try:
         payload = jwt_manager.decode_access_token(token)
@@ -40,11 +36,7 @@ async def create_order(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
     if user_id != token_user_id:
-        stmt = (
-            select(UserGroupModel)
-            .join(UserModel)
-            .where(UserModel.id == token_user_id)
-        )
+        stmt = select(UserGroupModel).join(UserModel).where(UserModel.id == token_user_id)
         result = await db.execute(stmt)
         group = result.scalars().first()
         if not group or group.name == UserGroupEnum.USER:
@@ -80,21 +72,29 @@ async def create_order(
 
     available_movie_ids = [m.id for m in movies]
 
-    stmt_paid = select(OrderItem.movie_id).join(Order).where(
-        and_(
-            Order.user_id == user_id,
-            Order.status == OrderStatusEnum.COMPLETED,
-            OrderItem.movie_id.in_(available_movie_ids)
+    stmt_paid = (
+        select(OrderItem.movie_id)
+        .join(Order)
+        .where(
+            and_(
+                Order.user_id == user_id,
+                Order.status == OrderStatusEnum.COMPLETED,
+                OrderItem.movie_id.in_(available_movie_ids),
+            )
         )
     )
     result = await db.execute(stmt_paid)
     purchased_movie_ids = {row for row, in result.all()}
 
-    stmt_pending = select(OrderItem.movie_id).join(Order).where(
-        and_(
-            Order.user_id == user_id,
-            Order.status == OrderStatusEnum.PENDING,
-            OrderItem.movie_id.in_(available_movie_ids)
+    stmt_pending = (
+        select(OrderItem.movie_id)
+        .join(Order)
+        .where(
+            and_(
+                Order.user_id == user_id,
+                Order.status == OrderStatusEnum.PENDING,
+                OrderItem.movie_id.in_(available_movie_ids),
+            )
         )
     )
     result = await db.execute(stmt_pending)
@@ -114,7 +114,7 @@ async def create_order(
     await db.commit()
     await db.refresh(order)
 
-    #creates checkout session
+    # creates checkout session
     checkout_link = create_checkout_session_service(order, user)
 
     return OrderResponseSchema(
@@ -122,12 +122,7 @@ async def create_order(
         created_at=order.created_at,
         status=order.status,
         total_amount=order.total_amount,
-        items=[
-            OrderItemSchema(
-                movie_id=item.movie_id,
-                price_at_order=item.price_at_order
-            ) for item in items
-        ],
+        items=[OrderItemSchema(movie_id=item.movie_id, price_at_order=item.price_at_order) for item in items],
         payment_url=cast(HttpUrl, checkout_link.url),
     )
 
@@ -137,7 +132,7 @@ async def get_user_orders(
     user_id: int,
     token: str = Depends(get_token),
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     payload = jwt_manager.decode_access_token(token)
     token_user_id = payload.get("user_id")
@@ -152,19 +147,18 @@ async def get_user_orders(
     response = []
     for order in orders:
         order_items = [
-            OrderItemSchema(
-                movie_id=item.movie_id,
-                price_at_order=item.price_at_order
-            ) for item in order.items
+            OrderItemSchema(movie_id=item.movie_id, price_at_order=item.price_at_order) for item in order.items
         ]
-        response.append(OrderResponseSchema(
-            id=order.id,
-            created_at=order.created_at,
-            status=order.status,
-            total_amount=order.total_amount,
-            items=order_items,
-            payment_url=None
-        ))
+        response.append(
+            OrderResponseSchema(
+                id=order.id,
+                created_at=order.created_at,
+                status=order.status,
+                total_amount=order.total_amount,
+                items=order_items,
+                payment_url=None,
+            )
+        )
 
     return response
 
@@ -177,16 +171,12 @@ async def get_all_orders_admin(
     user_id: Optional[int] = None,
     status_filter: Optional[OrderStatusEnum] = None,
     date_from: Optional[datetime] = None,
-    date_to: Optional[datetime] = None
+    date_to: Optional[datetime] = None,
 ):
     payload = jwt_manager.decode_access_token(token)
     token_user_id = payload.get("user_id")
 
-    stmt = (
-        select(UserGroupModel)
-        .join(UserModel)
-        .where(UserModel.id == token_user_id)
-    )
+    stmt = select(UserGroupModel).join(UserModel).where(UserModel.id == token_user_id)
     result = await db.execute(stmt)
     group = result.scalars().first()
     if not group or group.name != UserGroupEnum.ADMIN:
@@ -213,19 +203,18 @@ async def get_all_orders_admin(
     response = []
     for order in orders:
         order_items = [
-            OrderItemSchema(
-                movie_id=item.movie_id,
-                price_at_order=item.price_at_order
-            ) for item in order.items
+            OrderItemSchema(movie_id=item.movie_id, price_at_order=item.price_at_order) for item in order.items
         ]
-        response.append(OrderResponseSchema(
-            id=order.id,
-            created_at=order.created_at,
-            status=order.status,
-            total_amount=order.total_amount,
-            items=order_items,
-            payment_url=None
-        ))
+        response.append(
+            OrderResponseSchema(
+                id=order.id,
+                created_at=order.created_at,
+                status=order.status,
+                total_amount=order.total_amount,
+                items=order_items,
+                payment_url=None,
+            )
+        )
 
     return response
 
@@ -235,7 +224,7 @@ async def cancel_order(
     order_id: int,
     token: str = Depends(get_token),
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     payload = jwt_manager.decode_access_token(token)
     token_user_id = payload.get("user_id")

@@ -4,17 +4,21 @@ from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 
+
 class OrderStatusEnum(str, Enum):
     PENDING = "PENDING"
     COMPLETED = "COMPLETED"
     CANCELED = "CANCELED"
 
+
 class OrderItemSchema(BaseModel):
     movie_id: int
     price_at_order: Decimal
 
+
 class OrderCreateSchema(BaseModel):
     movie_ids: List[int]
+
 
 class OrderResponseSchema(BaseModel):
     id: int
@@ -26,5 +30,3 @@ class OrderResponseSchema(BaseModel):
 
     class Config:
         orm_mode = True
-
-
