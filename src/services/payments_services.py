@@ -1,5 +1,7 @@
 from decimal import Decimal
 from http.client import HTTPException
+
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from src.database.models import UserModel
@@ -8,6 +10,39 @@ import stripe
 from src.database.models.payments import PaymentsModel, PaymentStatus, PaymentsItemModel
 
 from src.database.models import CartItemModel
+from src.database.models import PaymentsModel, PaymentStatus, OrderStatusEnum, Order
+from sqlalchemy import select
+
+async def create_payment_from_stripe_event(session, db: AsyncSession):
+    user_id = int(session["metadata"]["user_id"])
+    order_id = int(session["metadata"]["order_id"])
+    amount = int(session["amount_total"]) / 100  # cents to dollars
+    stripe_id = session["payment_intent"]
+    status = session["payment_status"]
+
+    await create_payment_in_db(
+        user_id=user_id,
+        order_id=order_id,
+        amount=amount,
+        stripe_id=stripe_id,
+        status=status,
+        db=db
+    )
+
+async def mark_payment_as_refunded(stripe_payment_intent: str, db: AsyncSession):
+    stmt = select(PaymentsModel).where(PaymentsModel.external_payment_id == stripe_payment_intent)
+    result = await db.execute(stmt)
+    payment = result.scalar_one_or_none()
+
+    if payment:
+        payment.status = PaymentStatus.REFUNDED
+
+        # також скасовуємо замовлення
+        order = await db.get(Order, payment.order_id)
+        if order:
+            order.status = OrderStatusEnum.CANCELED
+
+        await db.commit()
 
 
 def get_order_for_user(order_id: int, user: UserModel, db: Session) -> Order | None:

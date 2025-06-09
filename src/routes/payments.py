@@ -10,9 +10,10 @@ from src.tasks import send_email_notification
 
 from src.database.models.accounts import UserModel
 from src.config.dependencies import get_current_user, get_db
-from src.database.models.payments import PaymentsModel, PaymentsModel, PaymentStatus
+from src.database.models.payments import PaymentsModel, PaymentStatus
 from src.schemas.payments import PaymentListResponseSchema, PaymentDetailResponseSchema
-from src.services.payments_services import get_order_for_user, create_checkout_session_service, create_payment_in_db
+from src.services.payments_services import get_order_for_user, create_checkout_session_service, create_payment_in_db, \
+    mark_payment_as_refunded, create_payment_from_stripe_event
 
 from src.services.payments_services import clear_user_cart
 
@@ -31,7 +32,7 @@ async def create_checkout_session(
 
 
 @router.post("/stripe/webhook/")
-async def stripe_webhook(request: Request):
+async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
 
@@ -44,29 +45,19 @@ async def stripe_webhook(request: Request):
 
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
-        user_id = session["metadata"]["user_id"]
-        order_id = session["metadata"]["order_id"]
+        await create_payment_from_stripe_event(session, db)
 
-        await create_payment_in_db(
-            order_id=order_id,
-            user_id=user_id,
-            amount=session["data"]["amount"],
-            stripe_id=session["id"],
-            status=session["payment_status"]
-        )
         send_email_notification.delay(
-            user_id=user_id,
+            user_id=session["metadata"]["user_id"],
             subject="Your Payment Was Successful",
             template_name="payment_success.html"
         )
 
-# @router.get("/payments/history")
-# def get_payments_history(
-#         user: UserModel = Depends(get_current_user),
-#         db: AsyncSession = Depends(get_db)
-# ) -> PaymentsListResponseSchema:
-#     return db.query(Payments).filter_by(Payments.user_id=user.id).all()
+    elif event["type"] == "charge.refunded":
+        charge = event["data"]["object"]
+        await mark_payment_as_refunded(charge["payment_intent"], db)
 
+    return {"status": "ok"}
 @router.get("/payments/")
 async def get_payments(
         page: int = Query(1, ge=1, description="Page number (1-based index)"),
