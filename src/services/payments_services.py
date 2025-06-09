@@ -1,24 +1,23 @@
 from http.client import HTTPException
 
+import stripe
 from sqlalchemy.orm import Session
 
 from src.database.models import UserModel
 from src.database.models.orders import Order
-from src.database.models.payments import Payments, PaymentStatus, PaymentsItem
-import stripe
-
+from src.database.models.payments import Payments, PaymentsItem, PaymentStatus
 
 # def get_order_for_user(order_id: int, user_id: int, db: Session) -> Order | None:
 #     return db.query(Order).filter(Order.id == order_id, Order.user_id == user_id).first()
 
 
 def create_payment_in_db(
-        user_id: int,
-        order_id: int,
-        amount: float,
-        stripe_id: str,
-        status: str,
-        db: Session,
+    user_id: int,
+    order_id: int,
+    amount: float,
+    stripe_id: str,
+    status: str,
+    db: Session,
 ):
     match status:
         case "paid":
@@ -40,11 +39,7 @@ def create_payment_in_db(
 
     order = db.query(Order).filter(Order.id == order_id).first()
     for item in order.items:
-        db.add(PaymentsItem(
-            payment_id=payment.id,
-            order_item_id=item.id,
-            price_at_payment=item.price
-        ))
+        db.add(PaymentsItem(payment_id=payment.id, order_item_id=item.id, price_at_payment=item.price))
     db.commit()
 
 
