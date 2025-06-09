@@ -60,4 +60,18 @@ sleep 15
 echo "🔍 Checking service health..."
 docker compose -f docker-compose-prod.yml ps || handle_error "Failed to check services"
 
+echo "🔌 Checking port conflicts..."
+if ss -tulnp | grep -q ":80.*nginx" && docker ps --format "table {{.Names}}\t{{.Ports}}" | grep -q "8080"; then
+    echo "⚠️  Warning: Both system nginx and Docker nginx are running!"
+    echo "   System nginx should proxy to Docker nginx on ports 8080/8443"
+    echo "   Run the following commands to fix:"
+    echo "   sudo cp nginx/system-nginx.conf /etc/nginx/nginx.conf"
+    echo "   sudo nginx -t && sudo systemctl restart nginx"
+elif ! ss -tulnp | grep -q ":80.*nginx"; then
+    echo "ℹ️  System nginx is not running. Docker nginx is accessible on ports 8080/8443"
+    echo "   To setup system nginx proxy, run:"
+    echo "   sudo cp nginx/system-nginx.conf /etc/nginx/nginx.conf"
+    echo "   sudo nginx -t && sudo systemctl start nginx"
+fi
+
 echo "✅ Deployment completed successfully!"
