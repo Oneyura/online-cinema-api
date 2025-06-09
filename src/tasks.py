@@ -245,3 +245,33 @@ def send_password_reset_email(user_id: int, reset_token: str) -> str:
 
     result = run_async(_send_password_reset_email())
     return result
+
+@celery.task
+def send_email_notification(user_id: int, subject: str, template_name: str) -> str:
+    """
+    Send a generic email using a given template and subject.
+    Used e.g. for payment success notifications.
+    """
+
+    async def _send_email():
+        async with AsyncSessionLocal() as session:
+            from sqlalchemy import select
+            stmt = select(UserModel).where(UserModel.id == int(user_id))
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+
+            if not user:
+                return f"User {user_id} not found"
+
+            email_sender = get_email_sender()
+            context = {"email": user.email}
+            await email_sender.send_custom_template_email(
+                email=user.email,
+                subject=subject,
+                template_name=template_name,
+                context=context
+            )
+
+            return f"Email '{subject}' sent to {user.email}"
+
+    return run_async(_send_email())
