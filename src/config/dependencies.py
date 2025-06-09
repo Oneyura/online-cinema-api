@@ -4,12 +4,17 @@ from typing import AsyncGenerator
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from security.interfaces import JWTAuthManagerInterface
+from security.token_manager import JWTAuthManager
+from src.config.settings import BaseAppSettings, Settings, TestSettings
 from src.config.settings import BaseAppSettings, Settings, TestSettings, ProductionSettings
 from src.database.session import get_async_session
 from src.notifications.emails import EmailSender
 from src.notifications.interfaces import EmailSenderInterface
+from src.security.token_manager import JWTAuthManager
 from src.storages.interfaces import S3StorageInterface
 from src.storages.s3 import S3StorageClient
+from src.security.interfaces import JWTAuthManagerInterface
 
 
 def get_settings() -> BaseAppSettings:
@@ -22,14 +27,10 @@ def get_settings() -> BaseAppSettings:
     return Settings()
 
 
-async def get_db(
-    session: AsyncSession = Depends(get_async_session),
-) -> AsyncGenerator[AsyncSession, None]:
-    """Get database session dependency."""
-    try:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    from src.database.session import get_async_session
+    async with get_async_session() as session:
         yield session
-    finally:
-        await session.close()
 
 
 def get_email_sender(
@@ -59,4 +60,27 @@ def get_minio_client(
         access_key=settings.MINIO_ROOT_USER,
         secret_key=settings.MINIO_ROOT_PASSWORD,
         bucket_name=settings.MINIO_BUCKET_NAME,
+    )
+
+
+def get_jwt_auth_manager(settings: BaseAppSettings = Depends(get_settings)) -> JWTAuthManagerInterface:
+    """
+    Create and return a JWT authentication manager instance.
+
+    This function uses the provided application settings to instantiate a JWTAuthManager, which implements
+    the JWTAuthManagerInterface. The manager is configured with secret keys for access and refresh tokens
+    as well as the JWT signing algorithm specified in the settings.
+
+    Args:
+        settings (BaseAppSettings, optional): The application settings instance.
+        Defaults to the output of get_settings().
+
+    Returns:
+        JWTAuthManagerInterface: An instance of JWTAuthManager configured with
+        the appropriate secret keys and algorithm.
+    """
+    return JWTAuthManager(
+        secret_key_access=settings.SECRET_KEY_ACCESS,
+        secret_key_refresh=settings.SECRET_KEY_REFRESH,
+        algorithm=settings.JWT_SIGNING_ALGORITHM
     )
