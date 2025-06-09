@@ -119,6 +119,9 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
     depends_on:
       - web
+      - flower
+      - minio
+      - mailhog
     networks:
       - cinema_network
 
@@ -140,13 +143,11 @@ services:
       - cinema_network
 
   mailhog:
-    image: mailhog/mailhog
+    image: druidfi/mailhog:1.0.1
     container_name: mailhog_cinema
     ports:
       - "8025:8025"
       - "1025:1025"
-    environment:
-      - MH_UI_WEB_PATH=mail
     networks:
       - cinema_network
 

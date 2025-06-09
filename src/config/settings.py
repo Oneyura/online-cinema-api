@@ -2,10 +2,12 @@ import os
 from pathlib import Path
 
 from pydantic import ConfigDict
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class BaseAppSettings(BaseSettings):
+    model_config = ConfigDict(extra="allow")
+
     # Base directory
     BASE_DIR: Path = Path(__file__).parent.parent
 
@@ -27,19 +29,18 @@ class BaseAppSettings(BaseSettings):
     def MINIO_ENDPOINT(self) -> str:
         return f"http://{self.MINIO_HOST}:{self.MINIO_PORT}"
 
-    model_config = ConfigDict(
-        extra="allow"
-    )
-
 
 class Settings(BaseAppSettings):
+    model_config = SettingsConfigDict(
+        env_file=(".env.prod", ".env", ".env.local"), env_file_encoding="utf-8", extra="allow"
+    )
+
     # Database settings
     POSTGRES_USER: str = os.getenv("POSTGRES_USER", "cinema_user")
     POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "cinema_password")
     POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "localhost")
     POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", 5433))
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "cinema_db")
-    DB_ECHO_LOG: bool = os.getenv("DB_ECHO_LOG", "true").lower() == "true"
     COOKIE: bool = False # DEVELOP -> False. PROD -> True
 
     @property
@@ -54,20 +55,16 @@ class Settings(BaseAppSettings):
             f"{self.POSTGRES_DB}"
         )
 
-    model_config = ConfigDict(
-        env_file=(".env.prod", ".env", ".env.local"),
-        extra="allow"
-    )
-
 
 class TestSettings(BaseAppSettings):
+    model_config = ConfigDict(extra="allow")
+
     # Test database settings
     POSTGRES_USER: str = "test_user"
     POSTGRES_PASSWORD: str = "test_password"
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5433
     POSTGRES_DB: str = "test_db"
-    DB_ECHO_LOG: bool = False
 
     @property
     def database_url(self) -> str:
@@ -80,10 +77,6 @@ class TestSettings(BaseAppSettings):
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/"
             f"{self.POSTGRES_DB}"
         )
-
-    model_config = ConfigDict(
-        extra="allow"
-    )
 
 
 # Create settings instance based on environment

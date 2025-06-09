@@ -55,16 +55,29 @@ class EmailSender(EmailSenderInterface):
         message.attach(MIMEText(html_content, "html"))
 
         try:
-            smtp = aiosmtplib.SMTP(hostname=self._hostname, port=self._port, start_tls=self._use_tls)
+            # For MailHog (development/testing), we don't need authentication
+            smtp = aiosmtplib.SMTP(hostname=self._hostname, port=self._port)
             await smtp.connect()
-            if self._use_tls:
+
+            # Only use TLS and login if configured
+            if self._use_tls and self._hostname != "mailhog":
                 await smtp.starttls()
-            await smtp.login(self._email, self._password)
+
+            # Only login if credentials are provided and not using MailHog
+            if self._email and self._password and self._hostname != "mailhog":
+                await smtp.login(self._email, self._password)
+
             await smtp.sendmail(self._email, [recipient], message.as_string())
             await smtp.quit()
+
+            logging.info(f"Email sent successfully to {recipient}")
+
         except aiosmtplib.SMTPException as error:
             logging.error(f"Failed to send email to {recipient}: {error}")
             raise BaseEmailError(f"Failed to send email to {recipient}: {error}")
+        except Exception as error:
+            logging.error(f"Unexpected error sending email to {recipient}: {error}")
+            raise BaseEmailError(f"Unexpected error sending email to {recipient}: {error}")
 
     async def send_activation_email(self, email: str, activation_link: str) -> None:
         """
