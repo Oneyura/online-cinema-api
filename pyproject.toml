@@ -39,6 +39,7 @@ celery = "^5.3.6"
 redis = "^5.0.3"
 flower = "^2.0.1"
 stripe = "^12.2.0"
+asgi-lifespan = "^2.1.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.3.0"
