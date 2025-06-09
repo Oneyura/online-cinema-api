@@ -4,7 +4,7 @@ from typing import List
 from sqlalchemy import ForeignKey, Integer, DateTime, func, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.database.base import Base
+from src.database.models.base import Base
 
 
 class CartModel(Base):
