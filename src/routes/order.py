@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config.dependencies import get_jwt_auth_manager
 from config.dependencies import get_db
 from database.models.accounts import UserModel, UserGroupModel, UserGroupEnum
-from database.models.carts import CartModel, CartItemModel
+from database.models.cart import CartModel, CartItemModel
 from database.models.movies import MovieModel
 from database.models.orders import Order, OrderItem, OrderStatusEnum
 from schemas.orders import OrderResponseSchema, OrderItemSchema
