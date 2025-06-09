@@ -8,10 +8,14 @@ from database.models.orders import Order
 import stripe
 from database.models.payments import PaymentsModel, PaymentStatus, PaymentsItemModel
 
+from src.database.models import CartItemModel
+
 
 # def get_order_for_user(order_id: int, user_id: int, db: Session) -> Order | None:
 #     return db.query(Order).filter(Order.id == order_id, Order.user_id == user_id).first()
-
+def clear_user_cart(user_id: int, db: Session):
+    db.query(CartItemModel).filter(CartItemModel.user_id == user_id).delete()
+    db.commit()
 
 def create_payment_in_db(
         user_id: int,
@@ -21,7 +25,7 @@ def create_payment_in_db(
         status: str,
         db: Session,
 ):
-
+    clear_user_cart(user_id, db) # Clearing user's cart
     order = db.query(Order).filter(Order.id == order_id, Order.user_id == user_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
