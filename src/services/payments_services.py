@@ -10,8 +10,10 @@ from src.database.models.payments import PaymentsModel, PaymentStatus, PaymentsI
 from src.database.models import CartItemModel
 
 
-# def get_order_for_user(order_id: int, user_id: int, db: Session) -> Order | None:
-#     return db.query(Order).filter(Order.id == order_id, Order.user_id == user_id).first()
+def get_order_for_user(order_id: int, user: UserModel, db: Session) -> Order | None:
+    return db.query(Order).filter(Order.id == order_id, Order.user_id == user.id).first()
+
+
 def clear_user_cart(user_id: int, db: Session):
     db.query(CartItemModel).filter(CartItemModel.user_id == user_id).delete()
     db.commit()

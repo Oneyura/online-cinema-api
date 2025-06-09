@@ -1,4 +1,3 @@
-import logging
 import os
 from typing import Optional
 from datetime import date
@@ -7,12 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.requests import Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette import status
 from src.tasks import send_email_notification
 
 from src.database.models.accounts import UserModel
 from src.config.dependencies import get_current_user, get_db
-from src.database.models.payments import PaymentsModel, PaymentsModel
+from src.database.models.payments import PaymentsModel, PaymentsModel, PaymentStatus
 from src.schemas.payments import PaymentListResponseSchema, PaymentDetailResponseSchema
 from src.services.payments_services import get_order_for_user, create_checkout_session_service, create_payment_in_db
 
@@ -26,15 +24,9 @@ stripe.api_key = os.environ.get("STRIPE_API_KEY")
 async def create_checkout_session(
         order_id: int,
         db: AsyncSession = Depends(get_db),
-        token: str = Depends(get_token),
-        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+        user: UserModel = Depends(get_current_user),
 ):
-    try:
-        payload = jwt_manager.decode_access_token(token)
-        token_user_id = payload.get("user_id")
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    order = await get_order_for_user(order_id, token_user_id, db)  # async якщо треба
+    order = await get_order_for_user(order_id, user, db)  # async якщо треба
     return create_checkout_session_service(order, user)
 
 
