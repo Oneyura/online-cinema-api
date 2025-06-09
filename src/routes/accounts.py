@@ -34,10 +34,10 @@ from src.schemas.auth import (
 from src.security.interfaces import JWTAuthManagerInterface
 from src.services.auth_service import AuthService
 
-router = APIRouter()
+accounts_router = APIRouter()
 
 
-@router.post(
+@accounts_router.post(
     "/register/",
     response_model=UserRegistrationResponseSchema,
     summary="User Registration",
@@ -131,7 +131,7 @@ async def register_user(
         return UserRegistrationResponseSchema.model_validate(new_user)
 
 
-@router.post(
+@accounts_router.post(
     "/activate/",
     response_model=MessageResponseSchema,
     summary="Activate User Account",
@@ -222,7 +222,7 @@ async def activate_account(
     return MessageResponseSchema(message="User account activated successfully.")
 
 
-@router.post(
+@accounts_router.post(
     "/password-reset/request/",
     response_model=MessageResponseSchema,
     summary="Request Password Reset Token",
@@ -269,7 +269,7 @@ async def request_password_reset_token(
     )
 
 
-@router.post(
+@accounts_router.post(
     "/reset-password/complete/",
     response_model=MessageResponseSchema,
     summary="Reset User Password",
@@ -380,7 +380,7 @@ async def reset_password(
     return MessageResponseSchema(message="Password reset successfully.")
 
 
-@router.post(
+@accounts_router.post(
     "/login/",
     response_model=UserLoginResponseSchema,
     summary="User Login",
@@ -487,7 +487,7 @@ async def login_user(
     )
 
 
-@router.post(
+@accounts_router.post(
     "/refresh/",
     response_model=TokenRefreshResponseSchema,
     summary="Refresh Access Token",
@@ -582,7 +582,7 @@ async def refresh_access_token(
 
     return TokenRefreshResponseSchema(access_token=new_access_token)
 
-@router.post(
+@accounts_router.post(
     "/resend-activation/",
     response_model=MessageResponseSchema,
     summary="Resend Activation Email",
@@ -640,7 +640,7 @@ async def resend_activation_email(
     return MessageResponseSchema(**result)
 
 
-@router.post("/logout",
+@accounts_router.post("/logout",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="User Logout",
     description=(

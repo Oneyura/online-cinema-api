@@ -27,6 +27,12 @@ class BaseAppSettings(BaseSettings):
     MINIO_ROOT_PASSWORD: str = os.getenv("MINIO_ROOT_PASSWORD", "minioadmin")
     MINIO_BUCKET_NAME: str = os.getenv("MINIO_BUCKET_NAME", "cinema-storage")
 
+    # JWT settings
+    SECRET_KEY_ACCESS: str = os.getenv("SECRET_KEY_ACCESS", "your-secret-key-access")
+    SECRET_KEY_REFRESH: str = os.getenv("SECRET_KEY_REFRESH", "your-secret-key-refresh")
+    JWT_SIGNING_ALGORITHM: str = os.getenv("JWT_SIGNING_ALGORITHM", "HS256")
+    LOGIN_TIME_DAYS: int = int(os.getenv("LOGIN_TIME_DAYS", 7))
+
     @property
     def MINIO_ENDPOINT(self) -> str:
         return f"http://{self.MINIO_HOST}:{self.MINIO_PORT}"
@@ -34,7 +40,7 @@ class BaseAppSettings(BaseSettings):
 
 class Settings(BaseAppSettings):
     model_config = SettingsConfigDict(
-        env_file=(".env.prod", ".env", ".env.local"), env_file_encoding="utf-8", extra="allow"
+        env_file=(".env", ".env.local"), env_file_encoding="utf-8", extra="allow"
     )
 
     # Database settings
@@ -74,6 +80,33 @@ class TestSettings(BaseAppSettings):
     def database_url(self) -> str:
         """
         Get AsyncPG database URL for tests.
+        """
+        return (
+            f"postgresql+asyncpg://{self.POSTGRES_USER}:"
+            f"{self.POSTGRES_PASSWORD}"
+            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/"
+            f"{self.POSTGRES_DB}"
+        )
+
+
+class ProductionSettings(BaseAppSettings):
+    """Production environment settings - uses .env.prod file and SendGrid for emails"""
+    model_config = SettingsConfigDict(
+        env_file=(".env.prod",), env_file_encoding="utf-8", extra="allow"
+    )
+
+    # Database settings for production
+    POSTGRES_USER: str = os.getenv("POSTGRES_USER", "cinema_user")
+    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "cinema_password")
+    POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "postgres")
+    POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", 5432))
+    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "cinema_db")
+    DB_ECHO_LOG: bool = os.getenv("DB_ECHO_LOG", "False").lower() == "true"
+
+    @property
+    def database_url(self) -> str:
+        """
+        Get AsyncPG database URL for production.
         """
         return (
             f"postgresql+asyncpg://{self.POSTGRES_USER}:"

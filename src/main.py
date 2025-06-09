@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.routes.accounts import accounts_router
 from src.routes.cart import router as cart_router
 from src.routes.order import router as order_router
 from src.routes.movies import router as movie_router
@@ -31,3 +32,5 @@ app.include_router(cart_router, prefix="/api")
 app.include_router(order_router, prefix="/api")
 
 app.include_router(movie_router, prefix="/api")
+
+app.include_router(accounts_router, prefix="/api/accounts", tags=["Authentication"]) #

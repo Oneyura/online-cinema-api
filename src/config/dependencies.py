@@ -1,20 +1,20 @@
 import os
 from typing import AsyncGenerator
 
-from fastapi.security import OAuth2PasswordBearer
 from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import UserModel
+from src.config.settings import BaseAppSettings, Settings, TestSettings, ProductionSettings
+from src.security.interfaces import JWTAuthManagerInterface
+from src.security.token_manager import JWTAuthManager
 from src.exceptions.security import TokenExpiredError, InvalidTokenError
-from src.config.settings import BaseAppSettings, Settings, TestSettings
 from src.notifications.emails import EmailSender
 from src.notifications.interfaces import EmailSenderInterface
 from src.storages.interfaces import S3StorageInterface
 from src.storages.s3 import S3StorageClient
-from src.security.interfaces import JWTAuthManagerInterface
-from src.security.token_manager import JWTAuthManager
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
@@ -24,12 +24,14 @@ def get_settings() -> BaseAppSettings:
     environment = os.getenv("ENVIRONMENT", "developing")
     if environment == "testing":
         return TestSettings()
+    elif environment == "production":
+        return ProductionSettings()
     return Settings()
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    from src.database.session import get_async_session
-    async with get_async_session() as session:
+    from src.database.session import AsyncSessionLocal
+    async with AsyncSessionLocal() as session:
         yield session
 
 
@@ -96,15 +98,34 @@ def get_minio_client(
     )
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)) -> UserModel:
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
+) -> UserModel:
+    """
+    Get current authenticated user from JWT token.
+
+    Args:
+        token: JWT token from Authorization header
+        db: Database session
+        jwt_manager: JWT authentication manager
+
+    Returns:
+        UserModel: The authenticated user
+
+    Raises:
+        HTTPException: If token is invalid or user not found/inactive
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
     try:
-        payload = get_jwt_auth_manager().decode_access_token(token)
-        user_id: str = payload.get("user_id")
+        payload = jwt_manager.decode_access_token(token)
+        user_id = payload.get("user_id")
         if user_id is None:
             raise credentials_exception
     except TokenExpiredError:
@@ -123,6 +144,14 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
 
     if user is None:
         raise credentials_exception
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Inactive user",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     return user
 
 

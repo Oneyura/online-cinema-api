@@ -6,10 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.requests import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models.accounts import UserModel
-from config.dependencies import get_current_user, get_db
-from database.models.payments import Payments
-from services.payments_services import get_order_for_user, create_checkout_session_service, create_payment_in_db
+from src.database.models.accounts import UserModel
+from src.config.dependencies import get_current_user, get_db
+from src.database.models.payments import Payments
+from src.services.payments_services import get_order_for_user, create_checkout_session_service, create_payment_in_db
 
 router = APIRouter()
 
