@@ -32,7 +32,7 @@ class BaseAppSettings(BaseSettings):
 
 class Settings(BaseAppSettings):
     model_config = SettingsConfigDict(
-        env_file=(".env.prod", ".env", ".env.local"), env_file_encoding="utf-8", extra="allow"
+        env_file=(".env", ".env.local"), env_file_encoding="utf-8", extra="allow"
     )
 
     # Database settings
@@ -41,6 +41,9 @@ class Settings(BaseAppSettings):
     POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "localhost")
     POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", 5433))
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "cinema_db")
+
+    DB_ECHO_LOG: bool = os.getenv("DB_ECHO_LOG", "False").lower() == "true"
+    COOKIE: bool = False # DEVELOP -> False. PROD -> True
 
     @property
     def database_url(self) -> str:
@@ -69,6 +72,33 @@ class TestSettings(BaseAppSettings):
     def database_url(self) -> str:
         """
         Get AsyncPG database URL for tests.
+        """
+        return (
+            f"postgresql+asyncpg://{self.POSTGRES_USER}:"
+            f"{self.POSTGRES_PASSWORD}"
+            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/"
+            f"{self.POSTGRES_DB}"
+        )
+
+
+class ProductionSettings(BaseAppSettings):
+    """Production environment settings - uses .env.prod file and SendGrid for emails"""
+    model_config = SettingsConfigDict(
+        env_file=(".env.prod",), env_file_encoding="utf-8", extra="allow"
+    )
+
+    # Database settings for production
+    POSTGRES_USER: str = os.getenv("POSTGRES_USER", "cinema_user")
+    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "cinema_password")
+    POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "postgres")
+    POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", 5432))
+    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "cinema_db")
+    DB_ECHO_LOG: bool = os.getenv("DB_ECHO_LOG", "False").lower() == "true"
+
+    @property
+    def database_url(self) -> str:
+        """
+        Get AsyncPG database URL for production.
         """
         return (
             f"postgresql+asyncpg://{self.POSTGRES_USER}:"
