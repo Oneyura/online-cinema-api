@@ -56,7 +56,6 @@ jobs:
       - name: Copy Nginx configurations
         run: |
           scp -r nginx/nginx.conf ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/online-cinema-api/nginx/
-          scp -r nginx/system-nginx.conf ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/online-cinema-api/nginx/
           scp -r nginx/auth/generate_htpasswd.sh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ubuntu/online-cinema-api/nginx/auth/
 
       - name: Generate Basic Auth credentials
@@ -70,13 +69,3 @@ jobs:
         run: |
           ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
             'cd /home/ubuntu/online-cinema-api && bash ./commands/deploy.sh'
-
-      - name: Setup System Nginx
-        run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
-            'cd /home/ubuntu/online-cinema-api && \
-             sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup || true && \
-             sudo cp nginx/system-nginx.conf /etc/nginx/nginx.conf && \
-             sudo nginx -t && \
-             sudo systemctl restart nginx && \
-             sudo systemctl enable nginx'
