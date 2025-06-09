@@ -7,11 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from security.interfaces import JWTAuthManagerInterface
 from security.token_manager import JWTAuthManager
 from src.config.settings import BaseAppSettings, Settings, TestSettings
-from src.database.session import get_async_session
 from src.notifications.emails import EmailSender
 from src.notifications.interfaces import EmailSenderInterface
+from src.security.token_manager import JWTAuthManager
 from src.storages.interfaces import S3StorageInterface
 from src.storages.s3 import S3StorageClient
+from src.security.interfaces import JWTAuthManagerInterface
 
 
 def get_settings() -> BaseAppSettings:
@@ -22,14 +23,10 @@ def get_settings() -> BaseAppSettings:
     return Settings()
 
 
-async def get_db(
-    session: AsyncSession = Depends(get_async_session),
-) -> AsyncGenerator[AsyncSession, None]:
-    """Get database session dependency."""
-    try:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    from src.database.session import get_async_session
+    async with get_async_session() as session:
         yield session
-    finally:
-        await session.close()
 
 
 def get_email_sender(
@@ -61,7 +58,7 @@ def get_minio_client(
         bucket_name=settings.MINIO_BUCKET_NAME,
     )
 
-
+  
 def get_jwt_auth_manager(settings: BaseAppSettings = Depends(get_settings)) -> JWTAuthManagerInterface:
     """
     Create and return a JWT authentication manager instance.
