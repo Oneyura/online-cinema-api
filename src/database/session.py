@@ -3,15 +3,14 @@ from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from src.config.dependencies import get_settings
+from src.config.settings import Settings
 
-
-settings = get_settings()
+settings = Settings()
 
 # Create async engine
 engine = create_async_engine(
-    settings.POSTGRES_DATABASE_URL,  # type: ignore
-    echo=settings.DEBUG,  # type: ignore
+    settings.database_url,  # type: ignore
+    echo=settings.DB_ECHO_LOG,  # type: ignore
     future=True,
 )
 
