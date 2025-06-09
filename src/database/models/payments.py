@@ -31,7 +31,7 @@ class PaymentStatus(enum.Enum):
     REFUNDED = enum.auto()
 
 
-class Payments(Base):
+class PaymentsModel(Base):
 
     id: Mapped[int] = mapped_column(
         Integer,
@@ -60,8 +60,15 @@ class Payments(Base):
     payment_items: Mapped[List["PaymentsItem"]] = relationship("PaymentsItem", back_populates="payment", cascade="all, delete-orphan")
     user: Mapped["UserModel"] = relationship("User", back_populates="payments")
 
+    @classmethod
+    def default_order_by(cls):
+        return [cls.id.desc()]
 
-class PaymentsItem(Base):
+    def __repr__(self):
+        return f"<Payment(amount='{self.amount}', date='{self.created_at}', status={self.status})>"
+
+
+class PaymentsItemModel(Base):
     id: Mapped[int] = mapped_column(
         Integer,
         primary_key=True,

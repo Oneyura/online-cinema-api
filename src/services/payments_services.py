@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from database.models.payments import Payments, PaymentStatus, PaymentsItem
+from database.models.payments import PaymentsModel, PaymentStatus, PaymentsItemModel
 
 
 # def get_order_for_user(order_id: int, user_id: int, db: Session) -> Order | None:
@@ -23,7 +23,7 @@ def create_payment_in_db(
         case _:
             raise ValueError(f"Unknown payment status: {status}")
 
-    payment = Payments(
+    payment = PaymentsModel(
         user_id=user_id,
         order_id=order_id,
         amount=amount,
@@ -35,7 +35,7 @@ def create_payment_in_db(
 
     order = db.query(Order).filter(Order.id == order_id).first()
     for item in order.items:
-        db.add(PaymentsItem(
+        db.add(PaymentsItemModel(
             payment_id=payment.id,
             order_item_id=item.id,
             price_at_payment=item.price
