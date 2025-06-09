@@ -6,7 +6,6 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.session import get_async_session
 from src.database.models import UserModel
 from src.config.settings import BaseAppSettings, Settings, TestSettings, ProductionSettings
 from src.security.interfaces import JWTAuthManagerInterface
@@ -31,8 +30,8 @@ def get_settings() -> BaseAppSettings:
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    from src.database.session import get_async_session
-    async with get_async_session() as session:
+    from src.database.session import AsyncSessionLocal
+    async with AsyncSessionLocal() as session:
         yield session
 
 
