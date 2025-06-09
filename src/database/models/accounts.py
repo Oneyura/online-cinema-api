@@ -11,7 +11,6 @@ from src.security.passwords import hash_password, verify_password
 from src.security.utils import generate_secure_token
 
 
-
 class UserGroupEnum(str, enum.Enum):
     USER = "user"
     MODERATOR = "moderator"
@@ -67,6 +66,19 @@ class UserModel(Base):
     )
 
     payments: Mapped[List["Payments"]] = relationship("Payments", back_populates="user")
+
+    comments: Mapped[List["CommentModel"]] = relationship(
+        "CommentModel", back_populates="user", cascade="all, delete-orphan"
+    )
+    movie_likes: Mapped[List["MovieLikeModel"]] = relationship(
+        "MovieLikeModel", back_populates="user", cascade="all, delete-orphan"
+    )
+    movie_ratings: Mapped[List["MovieRatingModel"]] = relationship(
+        "MovieRatingModel", back_populates="user", cascade="all, delete-orphan"
+    )
+    favorite_movies: Mapped[List["FavoriteMovieModel"]] = relationship(
+        "FavoriteMovieModel", back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<UserModel(id={self.id}, email={self.email}, is_active={self.is_active})>"

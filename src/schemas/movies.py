@@ -209,10 +209,6 @@ class CommentResponse(CommentBase):
 class CommentResponseNested(CommentBase):
     user: "UserModelResponse"
     replies: Optional[List["CommentResponseNested"]] = None # Для вкладених відповідей
-class UserResponseNested(BaseModel):
-    id: int # Додайте поля, які ви очікуєте від UserResponseNested
-    username: str # Наприклад, id та username
-    model_config = ConfigDict(from_attributes=True)
 
 
 class MovieLikeCreate(BaseModel):

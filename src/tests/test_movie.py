@@ -12,10 +12,10 @@ from decimal import Decimal
 from src.database.models.orders import Order, OrderItem
 from src.database.models.movies import (
     MovieModel, GenreModel, DirectorModel, ActorModel, CertificationModel,
-    CommentModel, MovieLikeModel, MovieRatingModel, FavoriteMovieModel
+    MovieLikeModel, MovieRatingModel, FavoriteMovieModel
 )
 from src.database.models.accounts import UserModel # Залишаємо UserModel для типхінтів, якщо потрібно
-
+from src.database.models.comment import CommentModel
 pytestmark = pytest.mark.asyncio
 
 class TestCertificationCRUD:

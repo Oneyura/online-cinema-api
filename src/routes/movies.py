@@ -9,6 +9,8 @@ from uuid import UUID
 
 from sqlalchemy.orm import relationship, selectinload
 
+from src.database.models import CommentModel
+from src.database.models import UserModel
 from src.config.dependencies import get_db
 from src.database.models.movies import (
     MovieModel,
@@ -23,12 +25,11 @@ from src.database.models.movies import (
 # Оновлено: Імпортуємо Order та OrderItem з src.database.models.orders
 from src.database.models.orders import Order, OrderItem
 from src.database.models.movies import (
-    CommentModel,
     MovieLikeModel,
     MovieRatingModel,
     FavoriteMovieModel,
-    UserModel
 )
+
 from src.schemas.movies import (
     MovieCreate,
     MovieUpdate,
@@ -40,8 +41,8 @@ from src.schemas.movies import (
     CertificationResponse,
     GenreCreate,
     ActorCreate,
-    DirectorCreate, # Додано для CRUD операцій
-    CertificationCreate, # Додано для CRUD операцій
+    DirectorCreate,  # Додано для CRUD операцій
+    CertificationCreate, CommentResponseNested,  # Додано для CRUD операцій
 )
 from src.schemas.movies import (
     CommentCreate,

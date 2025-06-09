@@ -7,9 +7,7 @@ from datetime import datetime
 
 from sqlalchemy.orm.attributes import Mapped
 
-from src.database.models.movies import MovieModel
-from src.database.models.payments import Payments, PaymentsItem
-from src.database.models import Base
+from src.database.models.base import Base
 
 
 class OrderStatusEnum(enum.Enum):

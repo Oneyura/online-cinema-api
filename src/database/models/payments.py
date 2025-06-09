@@ -2,7 +2,6 @@ from datetime import datetime
 import enum
 from decimal import Decimal
 from typing import List
-from src.database.models.accounts import UserModel
 
 
 from sqlalchemy.sql.sqltypes import Numeric
