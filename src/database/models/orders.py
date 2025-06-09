@@ -1,10 +1,8 @@
 from sqlalchemy import Column, Integer, ForeignKey, DateTime, Enum, Numeric
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
 import enum
 from datetime import datetime
-
-Base = declarative_base()  # should import from common base file later!
+from src.database.base import Base
 
 
 class OrderStatusEnum(enum.Enum):

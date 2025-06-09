@@ -5,9 +5,9 @@ from decimal import Decimal
 from enum import Enum
 
 class OrderStatusEnum(str, Enum):
-    pending = "pending"
-    paid = "paid"
-    canceled = "canceled"
+    PENDING = "PENDING"
+    COMPLETED = "COMPLETED"
+    CANCELED = "CANCELED"
 
 class OrderItemSchema(BaseModel):
     movie_id: int
