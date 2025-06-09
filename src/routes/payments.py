@@ -6,22 +6,23 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.requests import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models.accounts import UserModel
 from src.config.dependencies import get_current_user, get_db
+from src.database.models.accounts import UserModel
 from src.database.models.payments import Payments
-from src.services.payments_services import get_order_for_user, create_checkout_session_service, create_payment_in_db
+from src.services.payments_services import create_checkout_session_service, create_payment_in_db, get_order_for_user
 
 router = APIRouter()
 
 stripe.api_key = os.environ.get["STRIPE_API_KEY"]
 
+
 @router.post("/create-checkout-session/")
 async def create_checkout_session(
-        order_id: int,
-        db: AsyncSession = Depends(get_db),
-        token: str = Depends(get_token),
-        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
-        # user: UserModel = Depends(get_current_user) #TODO rewrite with token func
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(get_token),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+    # user: UserModel = Depends(get_current_user) #TODO rewrite with token func
 ):
     try:
         payload = jwt_manager.decode_access_token(token)
@@ -31,11 +32,12 @@ async def create_checkout_session(
     order = await get_order_for_user(order_id, token_user_id, db)  # async якщо треба
     return create_checkout_session_service(order, user)
 
+
 async def create_order(
-        user_id: int,
-        token: str = Depends(get_token),
-        jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
-        db: AsyncSession = Depends(get_db)
+    user_id: int,
+    token: str = Depends(get_token),
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
+    db: AsyncSession = Depends(get_db),
 ) -> OrderResponseSchema:
     try:
         payload = jwt_manager.decode_access_token(token)
@@ -43,15 +45,14 @@ async def create_order(
     except Exception:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
+
 @router.post("/stripe/webhook/")
 async def stripe_webhook(request: Request):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
 
     try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, os.getenv("STRIPE_WEBHOOK_SECRET")
-        )
+        event = stripe.Webhook.construct_event(payload, sig_header, os.getenv("STRIPE_WEBHOOK_SECRET"))
     except stripe.error.SignatureVerificationError:
         raise HTTPException(status_code=400, detail="Invalid Stripe signature")
 
@@ -65,8 +66,9 @@ async def stripe_webhook(request: Request):
             user_id=user_id,
             amount=session["data"]["amount"],
             stripe_id=session["id"],
-            status=session["payment_status"]
+            status=session["payment_status"],
         )
+
 
 # @router.get("/payments/history")
 # def get_payments_history(

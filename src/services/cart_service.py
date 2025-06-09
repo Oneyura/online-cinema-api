@@ -1,15 +1,15 @@
-from typing import List, Optional, Dict
 from decimal import Decimal
+from typing import List, Optional
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.database.models.cart import CartItemModel, CartModel
-from src.database.models.movies import MovieModel, GenreModel
+from src.database.models.movies import MovieModel
 from src.database.models.orders import Order, OrderItem, OrderStatusEnum
 from src.exceptions.cart import CartNotFoundError, MovieAlreadyInCartError, MovieNotInCartError
-from src.schemas.cart import MovieInCartSchema, CartItemResponseSchema, CartResponseSchema, CartValidationResponseSchema
+from src.schemas.cart import CartItemResponseSchema, CartResponseSchema, CartValidationResponseSchema, MovieInCartSchema
 
 
 class CartService:
@@ -56,15 +56,13 @@ class CartService:
                 user_id=cart.user_id,
                 created_at=cart.created_at,
                 cart_items=[],
-                total_price=Decimal('0.00'),
+                total_price=Decimal("0.00"),
                 total_items=0,
-                available_items=0
+                available_items=0,
             )
 
         # Get movie details
-        movies_query = select(MovieModel).options(
-            selectinload(MovieModel.genres)
-        ).where(MovieModel.id.in_(movie_ids))
+        movies_query = select(MovieModel).options(selectinload(MovieModel.genres)).where(MovieModel.id.in_(movie_ids))
         movies_result = await session.execute(movies_query)
         movies = {movie.id: movie for movie in movies_result.scalars().all()}
 
@@ -73,13 +71,13 @@ class CartService:
 
         # Build cart items with movie details
         cart_items = []
-        total_price = Decimal('0.00')
+        total_price = Decimal("0.00")
         available_items = 0
 
         for cart_item in cart.cart_items:
             movie = movies.get(cart_item.movie_id)
             is_purchased = cart_item.movie_id in purchased_movie_ids
-            
+
             movie_schema = None
             if movie:
                 movie_schema = MovieInCartSchema(
@@ -87,11 +85,11 @@ class CartService:
                     name=movie.name,
                     year=movie.year,
                     price=movie.price,
-                    genres=[genre.name for genre in movie.genres]
+                    genres=[genre.name for genre in movie.genres],
                 )
-                
+
                 if not is_purchased:
-                    total_price += movie.price
+                    total_price += Decimal(str(movie.price))
                     available_items += 1
 
             cart_item_schema = CartItemResponseSchema(
@@ -100,7 +98,7 @@ class CartService:
                 movie_id=cart_item.movie_id,
                 added_at=cart_item.added_at,
                 movie=movie_schema,
-                is_purchased=is_purchased
+                is_purchased=is_purchased,
             )
             cart_items.append(cart_item_schema)
 
@@ -111,17 +109,16 @@ class CartService:
             cart_items=cart_items,
             total_price=total_price,
             total_items=len(cart_items),
-            available_items=available_items
+            available_items=available_items,
         )
 
     @staticmethod
     async def _get_purchased_movie_ids(user_id: int, session: AsyncSession) -> set[int]:
         """Get set of movie IDs that user has already purchased"""
-        query = select(OrderItem.movie_id).join(Order).where(
-            and_(
-                Order.user_id == user_id,
-                Order.status == OrderStatusEnum.COMPLETED
-            )
+        query = (
+            select(OrderItem.movie_id)
+            .join(Order)
+            .where(and_(Order.user_id == user_id, Order.status == OrderStatusEnum.COMPLETED))
         )
         result = await session.execute(query)
         return {movie_id for movie_id, in result.all()}
@@ -132,22 +129,24 @@ class CartService:
         Add a movie to user's cart.
         Validates that:
         - Movie exists
-        - Movie is not already in cart  
+        - Movie is not already in cart
         - Movie has not been purchased
         """
         # Check if movie exists
         movie_query = select(MovieModel).where(MovieModel.id == movie_id)
         movie_result = await session.execute(movie_query)
         movie = movie_result.scalar_one_or_none()
-        
+
         if not movie:
             from src.exceptions.cart import MovieNotFoundError
+
             raise MovieNotFoundError()
 
         # Check if movie has already been purchased
         purchased_movie_ids = await CartService._get_purchased_movie_ids(user_id, session)
         if movie_id in purchased_movie_ids:
             from src.exceptions.cart import MovieAlreadyPurchasedError
+
             raise MovieAlreadyPurchasedError()
 
         # Get or create cart
@@ -167,12 +166,15 @@ class CartService:
         cart_item = CartItemModel(cart_id=cart.id, movie_id=movie_id)
         session.add(cart_item)
         await session.flush()
-        
+
         # Load cart_item with movie and its genres
         from sqlalchemy.orm import selectinload
-        query = select(CartItemModel).options(
-            selectinload(CartItemModel.movie).selectinload(MovieModel.genres)
-        ).where(CartItemModel.id == cart_item.id)
+
+        query = (
+            select(CartItemModel)
+            .options(selectinload(CartItemModel.movie).selectinload(MovieModel.genres))
+            .where(CartItemModel.id == cart_item.id)
+        )
         result = await session.execute(query)
         cart_item = result.scalar_one()
 
@@ -256,8 +258,8 @@ class CartService:
                 available_movies=[],
                 purchased_movies=[],
                 unavailable_movies=[],
-                total_price=Decimal('0.00'),
-                message="Cart is empty"
+                total_price=Decimal("0.00"),
+                message="Cart is empty",
             )
 
         # Get existing movies
@@ -272,14 +274,14 @@ class CartService:
         available_movies = []
         purchased_movies = []
         unavailable_movies = []
-        total_price = Decimal('0.00')
+        total_price = Decimal("0.00")
 
         for movie_id in movie_ids:
             if movie_id in purchased_movie_ids:
                 purchased_movies.append(movie_id)
             elif movie_id in existing_movies:
                 available_movies.append(movie_id)
-                total_price += existing_movies[movie_id].price
+                total_price += Decimal(str(existing_movies[movie_id].price))
             else:
                 unavailable_movies.append(movie_id)
 
@@ -299,5 +301,5 @@ class CartService:
             purchased_movies=purchased_movies,
             unavailable_movies=unavailable_movies,
             total_price=total_price,
-            message=message
+            message=message,
         )

@@ -1,23 +1,21 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import cast, List, Optional
-from pydantic import HttpUrl
+from typing import List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, and_
+from pydantic import HttpUrl
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config.dependencies import get_jwt_auth_manager
-from src.config.dependencies import get_db
-from src.database.models.accounts import UserModel, UserGroupModel, UserGroupEnum
-from src.database.models.cart import CartModel, CartItemModel
+from src.config.dependencies import get_db, get_jwt_auth_manager
+from src.database.models.accounts import UserGroupEnum, UserGroupModel, UserModel
+from src.database.models.cart import CartItemModel, CartModel
 from src.database.models.movies import MovieModel
 from src.database.models.orders import Order, OrderItem, OrderStatusEnum
-from src.schemas.orders import OrderResponseSchema, OrderItemSchema
+from src.schemas.orders import OrderItemSchema, OrderResponseSchema
 from src.security.http import get_token
 from src.security.interfaces import JWTAuthManagerInterface
 from src.services.payments_services import create_checkout_session_service
-
 
 router = APIRouter()
 

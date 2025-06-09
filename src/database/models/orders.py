@@ -39,4 +39,3 @@ class OrderItem(Base):
 
     order = relationship("Order", back_populates="items")
     payments_items: Mapped[List["PaymentsItem"]] = relationship("PaymentsItem", back_populates="order_item")
-

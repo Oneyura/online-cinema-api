@@ -6,13 +6,13 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config.settings import BaseAppSettings, ProductionSettings, Settings, TestSettings
 from src.database.models import UserModel
-from src.config.settings import BaseAppSettings, Settings, TestSettings, ProductionSettings
-from src.security.interfaces import JWTAuthManagerInterface
-from src.security.token_manager import JWTAuthManager
-from src.exceptions.security import TokenExpiredError, InvalidTokenError
+from src.exceptions.security import InvalidTokenError, TokenExpiredError
 from src.notifications.emails import EmailSender
 from src.notifications.interfaces import EmailSenderInterface
+from src.security.interfaces import JWTAuthManagerInterface
+from src.security.token_manager import JWTAuthManager
 from src.storages.interfaces import S3StorageInterface
 from src.storages.s3 import S3StorageClient
 
@@ -31,6 +31,7 @@ def get_settings() -> BaseAppSettings:
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     from src.database.session import AsyncSessionLocal
+
     async with AsyncSessionLocal() as session:
         yield session
 
@@ -64,7 +65,7 @@ def get_jwt_auth_manager(settings: BaseAppSettings = Depends(get_settings)) -> J
     return JWTAuthManager(
         secret_key_access=settings.SECRET_KEY_ACCESS,
         secret_key_refresh=settings.SECRET_KEY_REFRESH,
-        algorithm=settings.JWT_SIGNING_ALGORITHM
+        algorithm=settings.JWT_SIGNING_ALGORITHM,
     )
 
 
@@ -99,21 +100,21 @@ def get_minio_client(
 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme), 
+    token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
-    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
 ) -> UserModel:
     """
     Get current authenticated user from JWT token.
-    
+
     Args:
         token: JWT token from Authorization header
         db: Database session
         jwt_manager: JWT authentication manager
-        
+
     Returns:
         UserModel: The authenticated user
-        
+
     Raises:
         HTTPException: If token is invalid or user not found/inactive
     """
@@ -122,7 +123,7 @@ async def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     try:
         payload = jwt_manager.decode_access_token(token)
         user_id = payload.get("user_id")
@@ -144,21 +145,20 @@ async def get_current_user(
 
     if user is None:
         raise credentials_exception
-    
+
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Inactive user",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     return user
 
 
 async def get_current_moderator(current_user: UserModel = Depends(get_current_user)) -> UserModel:
     if current_user.group != "moderator":
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operation forbidden. Requires moderator role."
+            status_code=status.HTTP_403_FORBIDDEN, detail="Operation forbidden. Requires moderator role."
         )
     return current_user

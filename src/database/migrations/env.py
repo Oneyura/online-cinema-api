@@ -23,6 +23,7 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 target_metadata = Base.metadata
 
+
 # Convert async database URL to sync for Alembic
 def get_sync_database_url():
     """Convert async database URL to sync URL for Alembic"""
@@ -30,6 +31,7 @@ def get_sync_database_url():
     # Replace asyncpg with psycopg2
     sync_url = async_url.replace("postgresql+asyncpg://", "postgresql://")
     return sync_url
+
 
 # Update the database URL in Alembic config with sync URL
 config.set_main_option("sqlalchemy.url", get_sync_database_url())
