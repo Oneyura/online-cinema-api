@@ -51,7 +51,7 @@ def mock_movie():
         gross=1000000.0,
         description="A test movie description",
         price=Decimal("9.99"),
-        certification_id=1
+        certification_id=1,
     )
 
 
@@ -95,7 +95,7 @@ async def test_create_order_success(mock_db, mock_jwt_manager, mock_user, mock_m
         create_mock_result([]),
     ]
 
-    with patch('src.routes.order.create_checkout_session_service') as mock_checkout:
+    with patch("src.routes.order.create_checkout_session_service") as mock_checkout:
         mock_checkout.return_value = MagicMock(url="http://test-payment-url.com")
 
         async def mock_flush():
@@ -107,12 +107,8 @@ async def test_create_order_success(mock_db, mock_jwt_manager, mock_user, mock_m
         mock_db.flush.side_effect = mock_flush
 
         from src.routes.order import create_order
-        response = await create_order(
-            user_id=1,
-            token="valid_token",
-            jwt_manager=mock_jwt_manager,
-            db=mock_db
-        )
+
+        response = await create_order(user_id=1, token="valid_token", jwt_manager=mock_jwt_manager, db=mock_db)
 
         assert isinstance(response, OrderResponseSchema)
         assert response.status == "PENDING"
@@ -124,19 +120,12 @@ async def test_create_order_success(mock_db, mock_jwt_manager, mock_user, mock_m
 
 @pytest.mark.asyncio
 async def test_create_order_empty_cart(mock_db, mock_jwt_manager, mock_user):
-    mock_db.execute.side_effect = [
-        create_mock_result(mock_user),
-        create_mock_result(None)
-    ]
+    mock_db.execute.side_effect = [create_mock_result(mock_user), create_mock_result(None)]
 
     from src.routes.order import create_order
+
     with pytest.raises(HTTPException) as exc_info:
-        await create_order(
-            user_id=1,
-            token="valid_token",
-            jwt_manager=mock_jwt_manager,
-            db=mock_db
-        )
+        await create_order(user_id=1, token="valid_token", jwt_manager=mock_jwt_manager, db=mock_db)
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail == "Cart is empty"
@@ -145,11 +134,7 @@ async def test_create_order_empty_cart(mock_db, mock_jwt_manager, mock_user):
 @pytest.mark.asyncio
 async def test_get_user_orders_success(mock_db, mock_jwt_manager):
     order = Order(
-        id=1,
-        user_id=1,
-        status=OrderStatusEnum.COMPLETED,
-        total_amount=Decimal("19.98"),
-        created_at=datetime.utcnow()
+        id=1, user_id=1, status=OrderStatusEnum.COMPLETED, total_amount=Decimal("19.98"), created_at=datetime.utcnow()
     )
     order_item = OrderItem(id=1, order_id=1, movie_id=1, price_at_order=Decimal("9.99"))
     order.items = [order_item]
@@ -157,12 +142,8 @@ async def test_get_user_orders_success(mock_db, mock_jwt_manager):
     mock_db.execute.return_value = create_mock_result([order])
 
     from src.routes.order import get_user_orders
-    response = await get_user_orders(
-        user_id=1,
-        token="valid_token",
-        jwt_manager=mock_jwt_manager,
-        db=mock_db
-    )
+
+    response = await get_user_orders(user_id=1, token="valid_token", jwt_manager=mock_jwt_manager, db=mock_db)
 
     assert isinstance(response, list)
     assert len(response) == 1
@@ -177,26 +158,16 @@ async def test_get_all_orders_admin_success(mock_db, mock_jwt_manager):
     admin_group = UserGroupModel(id=1, name=UserGroupEnum.ADMIN)
 
     order = Order(
-        id=1,
-        user_id=1,
-        status=OrderStatusEnum.COMPLETED,
-        total_amount=Decimal("19.98"),
-        created_at=datetime.utcnow()
+        id=1, user_id=1, status=OrderStatusEnum.COMPLETED, total_amount=Decimal("19.98"), created_at=datetime.utcnow()
     )
     order_item = OrderItem(id=1, order_id=1, movie_id=1, price_at_order=Decimal("9.99"))
     order.items = [order_item]
 
-    mock_db.execute.side_effect = [
-        create_mock_result(admin_group),
-        create_mock_result([order])
-    ]
+    mock_db.execute.side_effect = [create_mock_result(admin_group), create_mock_result([order])]
 
     from src.routes.order import get_all_orders_admin
-    response = await get_all_orders_admin(
-        token="valid_token",
-        jwt_manager=mock_jwt_manager,
-        db=mock_db
-    )
+
+    response = await get_all_orders_admin(token="valid_token", jwt_manager=mock_jwt_manager, db=mock_db)
 
     assert isinstance(response, list)
     assert len(response) == 1
@@ -207,22 +178,14 @@ async def test_get_all_orders_admin_success(mock_db, mock_jwt_manager):
 @pytest.mark.asyncio
 async def test_cancel_order_success(mock_db, mock_jwt_manager):
     order = Order(
-        id=1,
-        user_id=1,
-        status=OrderStatusEnum.PENDING,
-        total_amount=Decimal("19.98"),
-        created_at=datetime.utcnow()
+        id=1, user_id=1, status=OrderStatusEnum.PENDING, total_amount=Decimal("19.98"), created_at=datetime.utcnow()
     )
 
     mock_db.execute.return_value = create_mock_result(order)
 
     from src.routes.order import cancel_order
-    response = await cancel_order(
-        order_id=1,
-        token="valid_token",
-        jwt_manager=mock_jwt_manager,
-        db=mock_db
-    )
+
+    response = await cancel_order(order_id=1, token="valid_token", jwt_manager=mock_jwt_manager, db=mock_db)
 
     assert response == {"detail": "Order canceled"}
     mock_db.commit.assert_called_once()
@@ -233,13 +196,9 @@ async def test_cancel_order_not_found(mock_db, mock_jwt_manager):
     mock_db.execute.return_value = create_mock_result(None)
 
     from src.routes.order import cancel_order
+
     with pytest.raises(HTTPException) as exc_info:
-        await cancel_order(
-            order_id=999,
-            token="valid_token",
-            jwt_manager=mock_jwt_manager,
-            db=mock_db
-        )
+        await cancel_order(order_id=999, token="valid_token", jwt_manager=mock_jwt_manager, db=mock_db)
 
     assert exc_info.value.status_code == 404
     assert exc_info.value.detail == "Order not found"
