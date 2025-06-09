@@ -29,4 +29,4 @@ app.add_middleware(
 app.include_router(cart_router, prefix="/api")
 app.include_router(order_router, prefix="/api")
 
-app.include_router(accounts_router, prefix="/api/accounts", tags=["Authentication"])
+app.include_router(accounts_router, prefix="/api/accounts", tags=["Authentication"]) #
