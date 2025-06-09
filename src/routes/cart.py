@@ -24,7 +24,7 @@ from src.schemas.cart import (
 )
 from src.services.cart_service import CartService
 
-router = APIRouter(prefix="/cart", tags=["cart"])
+router = APIRouter(prefix="/cart", tags=["Cart"])
 
 
 # Authentication is now handled by get_current_user dependency from src.config.dependencies
