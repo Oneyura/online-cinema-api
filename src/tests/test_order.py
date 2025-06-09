@@ -95,7 +95,7 @@ async def test_create_order_success(mock_db, mock_jwt_manager, mock_user, mock_m
         create_mock_result([]),
     ]
 
-    with patch("src.routes.order.create_checkout_session_service") as mock_checkout:
+    with patch("src.services.payments_services.create_checkout_session_service") as mock_checkout:
         mock_checkout.return_value = MagicMock(url="http://test-payment-url.com")
 
         async def mock_flush():

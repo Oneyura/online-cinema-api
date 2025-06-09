@@ -2,9 +2,9 @@ from http.client import HTTPException
 
 from sqlalchemy.orm import Session
 
-from database.models import UserModel
-from database.models.orders import Order
-from database.models.payments import Payments, PaymentStatus, PaymentsItem
+from src.database.models import UserModel
+from src.database.models.orders import Order
+from src.database.models.payments import Payments, PaymentStatus, PaymentsItem
 import stripe
 
 
