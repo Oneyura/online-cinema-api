@@ -7,16 +7,16 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.dependencies import get_jwt_auth_manager
-from config.dependencies import get_db
-from database.models.accounts import UserModel, UserGroupModel, UserGroupEnum
-from database.models.cart import CartModel, CartItemModel
-from database.models.movies import MovieModel
-from database.models.orders import Order, OrderItem, OrderStatusEnum
-from schemas.orders import OrderResponseSchema, OrderItemSchema
-from security.http import get_token
-from security.interfaces import JWTAuthManagerInterface
-from services.payments_services import create_checkout_session_service
+from src.config.dependencies import get_jwt_auth_manager
+from src.config.dependencies import get_db
+from src.database.models.accounts import UserModel, UserGroupModel, UserGroupEnum
+from src.database.models.cart import CartModel, CartItemModel
+from src.database.models.movies import MovieModel
+from src.database.models.orders import Order, OrderItem, OrderStatusEnum
+from src.schemas.orders import OrderResponseSchema, OrderItemSchema
+from src.security.http import get_token
+from src.security.interfaces import JWTAuthManagerInterface
+from src.services.payments_services import create_checkout_session_service
 
 
 router = APIRouter()
@@ -72,7 +72,7 @@ async def create_order(
     if not movie_ids:
         raise HTTPException(status_code=400, detail="No movies in cart")
 
-    stmt_movies = select(MovieModel).where(MovieModel.id.in_(movie_ids), MovieModel.is_available == True)
+    stmt_movies = select(MovieModel).where(MovieModel.id.in_(movie_ids))
     result = await db.execute(stmt_movies)
     movies = result.scalars().all()
     if not movies:
@@ -163,7 +163,7 @@ async def get_user_orders(
             status=order.status,
             total_amount=order.total_amount,
             items=order_items,
-            payment_url=None  # Not included in history for now
+            payment_url=None
         ))
 
     return response

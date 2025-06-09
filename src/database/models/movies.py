@@ -6,12 +6,7 @@ from uuid import UUID
 from sqlalchemy import String, Float, Text, DECIMAL, UniqueConstraint, Date, ForeignKey, Table, Column
 from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped, relationship
 from sqlalchemy import Enum as SQLAlchemyEnum
-
-
-class Base(DeclarativeBase):
-    @classmethod
-    def default_order_by(cls):
-        return None
+from src.database.base import Base
 
 MoviesGenresModel = Table(
     "movies_genres",

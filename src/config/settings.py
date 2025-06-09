@@ -43,6 +43,8 @@ class Settings(BaseAppSettings):
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "cinema_db")
     DB_ECHO_LOG: bool = os.getenv("DB_ECHO_LOG", "False").lower() == "true"
 
+    DB_ECHO_LOG: bool = False
+
     @property
     def database_url(self) -> str:
         """
