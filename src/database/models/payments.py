@@ -36,6 +36,7 @@ class PaymentStatus(enum.Enum):
 
 
 class PaymentsModel(Base):
+    __tablename__ = "payments"
 
     id: Mapped[int] = mapped_column(
         Integer,
@@ -71,13 +72,10 @@ class PaymentsModel(Base):
     def __repr__(self):
         return f"<Payment(amount='{self.amount}', date='{self.created_at}', status={self.status})>"
 
-class PaymentsItem(Base):
-    __tablename__ = "paymentsitem"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-
 
 class PaymentsItemModel(Base):
+    __tablename__ = "paymentsitem"
+
     id: Mapped[int] = mapped_column(
         Integer,
         primary_key=True,
