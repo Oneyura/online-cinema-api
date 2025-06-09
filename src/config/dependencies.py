@@ -4,13 +4,14 @@ from typing import AsyncGenerator
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config.settings import BaseAppSettings, Settings, TestSettings
+from src.config.settings import BaseAppSettings, Settings, TestSettings, ProductionSettings
+from src.database.session import get_async_session
 from src.notifications.emails import EmailSender
 from src.notifications.interfaces import EmailSenderInterface
+from src.security.interfaces import JWTAuthManagerInterface
 from src.security.token_manager import JWTAuthManager
 from src.storages.interfaces import S3StorageInterface
 from src.storages.s3 import S3StorageClient
-from src.security.interfaces import JWTAuthManagerInterface
 
 
 def get_settings() -> BaseAppSettings:
@@ -18,11 +19,12 @@ def get_settings() -> BaseAppSettings:
     environment = os.getenv("ENVIRONMENT", "developing")
     if environment == "testing":
         return TestSettings()
+    elif environment == "production":
+        return ProductionSettings()
     return Settings()
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    from src.database.session import get_async_session
     async with get_async_session() as session:
         yield session
 
@@ -55,6 +57,7 @@ def get_minio_client(
         secret_key=settings.MINIO_ROOT_PASSWORD,
         bucket_name=settings.MINIO_BUCKET_NAME,
     )
+
 
 def get_jwt_auth_manager(settings: BaseAppSettings = Depends(get_settings)) -> JWTAuthManagerInterface:
     """
