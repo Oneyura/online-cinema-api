@@ -58,20 +58,20 @@ class EmailSender(EmailSenderInterface):
             # For MailHog (development/testing), we don't need authentication
             smtp = aiosmtplib.SMTP(hostname=self._hostname, port=self._port)
             await smtp.connect()
-            
+
             # Only use TLS and login if configured
             if self._use_tls and self._hostname != "mailhog":
                 await smtp.starttls()
-            
+
             # Only login if credentials are provided and not using MailHog
             if self._email and self._password and self._hostname != "mailhog":
                 await smtp.login(self._email, self._password)
-            
+
             await smtp.sendmail(self._email, [recipient], message.as_string())
             await smtp.quit()
-            
+
             logging.info(f"Email sent successfully to {recipient}")
-            
+
         except aiosmtplib.SMTPException as error:
             logging.error(f"Failed to send email to {recipient}: {error}")
             raise BaseEmailError(f"Failed to send email to {recipient}: {error}")
