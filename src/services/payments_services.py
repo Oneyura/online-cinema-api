@@ -3,8 +3,9 @@ from http.client import HTTPException
 from fastapi import Request
 from sqlalchemy.orm import Session
 
-from database.models import UserModel
-from database.models.orders import Order
+from src.database.models import UserModel
+from src.database.models.orders import Order
+from src.database.models.payments import PaymentsModel, PaymentStatus, PaymentsItemModel
 import stripe
 from database.models.payments import PaymentsModel, PaymentStatus, PaymentsItemModel
 
