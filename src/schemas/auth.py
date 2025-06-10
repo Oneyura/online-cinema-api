@@ -74,6 +74,11 @@ class TokenRefreshResponseSchema(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
+class UserPublicResponseSchema(BaseModel):
+    id: int
+    email: EmailStr
+    username: Optional[str] = None
+
 
 class PasswordChangeRequestSchema(BaseModel):
     old_password: str
