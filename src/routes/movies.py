@@ -41,7 +41,7 @@ from src.schemas.movies import (
     GenreCreate,
     ActorCreate,
     DirectorCreate,
-    CertificationCreate, CommentResponseNested, DirectorUpdate,
+    CertificationCreate, CommentResponseNested, DirectorUpdate, DirectorCreateResponse,
 )
 from src.schemas.movies import (
     CommentCreate,
@@ -861,7 +861,7 @@ async def delete_certification(
 
 
 # --- CRUD for Directors (Moderator only) ---
-@router.post("/directors", response_model=DirectorResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/directors", response_model=DirectorCreateResponse, status_code=status.HTTP_201_CREATED)
 async def create_director(
         director: DirectorCreate,
         db: AsyncSession = Depends(get_db),
@@ -884,24 +884,6 @@ async def create_director(
         await db.rollback()
         raise HTTPException(status_code=400, detail=f"Could not create director: {e}")
 
-@router.get("/directors/{director_id}", response_model=DirectorResponse)
-async def get_director(
-        director_id: int,
-        db: AsyncSession = Depends(get_db)
-) -> DirectorResponse:
-    """
-    Get information about a specific director by ID, including a list of associated movies.
-    """
-    query = select(DirectorModel).filter_by(id=director_id).options(
-        selectinload(DirectorModel.movies).selectinload(MovieModel.certification),
-        selectinload(DirectorModel.movies).selectinload(MovieModel.genres),
-        selectinload(DirectorModel.movies).selectinload(MovieModel.actors)
-    )
-    result = await db.execute(query)
-    director_obj = result.scalars().first()
-    if not director_obj:
-        raise HTTPException(status_code=404, detail="Director not found.")
-    return director_obj
 
 @router.get("/directors", response_model=List[DirectorResponse])
 async def get_all_directors(
@@ -922,6 +904,26 @@ async def get_all_directors(
     result = await db.execute(query)
     directors = result.scalars().unique().all()
     return directors
+
+
+@router.get("/directors/{director_id}", response_model=DirectorResponse)
+async def get_director(
+        director_id: int,
+        db: AsyncSession = Depends(get_db)
+) -> DirectorResponse:
+    """
+    Get information about a specific director by ID, including a list of associated movies.
+    """
+    query = select(DirectorModel).filter_by(id=director_id).options(
+        selectinload(DirectorModel.movies).selectinload(MovieModel.certification),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.genres),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.actors)
+    )
+    result = await db.execute(query)
+    director_obj = result.scalars().first()
+    if not director_obj:
+        raise HTTPException(status_code=404, detail="Director not found.")
+    return director_obj
 
 
 @router.put("/directors/{director_id}", response_model=DirectorResponse)

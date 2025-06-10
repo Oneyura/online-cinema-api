@@ -126,6 +126,13 @@ class MovieCreate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class DirectorCreateResponse(BaseModel):
+    id: int = Field(..., description="Unique identifier of the director.")
+    name: str = Field(..., description="Director's name")
+    class Config:
+        from_attributes = True
+
+
 class DirectorUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100, description="New name for the director. Must be unique if provided.")
 
