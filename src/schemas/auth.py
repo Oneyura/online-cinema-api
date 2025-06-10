@@ -79,6 +79,10 @@ class UserPublicResponseSchema(BaseModel):
     email: EmailStr
     username: Optional[str] = None
 
+    model_config = {
+        "from_attributes": True
+    }
+
 
 class PasswordChangeRequestSchema(BaseModel):
     old_password: str
