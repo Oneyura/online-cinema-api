@@ -1,25 +1,6 @@
-from src.database.models.accounts import (
-    UserModel,
-    UserProfileModel,
-    TokenBaseModel,
-    ActivationTokenModel,
-    PasswordResetTokenModel,
-    RefreshTokenModel
-)
-from src.database.models.cart import (
-    CartModel,
-    CartItemModel
-)
-from src.database.models.movies import (
-    MovieModel,
-    GenreModel,
-    ActorModel,
-    DirectorModel,
-    CertificationModel,
-    MovieLikeModel,
-    MovieRatingModel,
-    FavoriteMovieModel
-)
-from src.database.models.comment import CommentModel
-from src.database.models.orders import Order, OrderItem
-from src.database.models.payments import Payments, PaymentsItem
+# src/database/models/__init__.py
+from src.database.models.accounts import *
+from src.database.models.cart import *
+from src.database.models.movies import *
+from src.database.models.orders import *
+from src.database.models.payments import *
