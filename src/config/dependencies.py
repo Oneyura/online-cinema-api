@@ -156,7 +156,7 @@ async def get_current_user(
 
 
 async def get_current_moderator(current_user: UserModel = Depends(get_current_user)) -> UserModel:
-    if current_user.group != "moderator":
+    if current_user.group != "moderator" or current_user.group != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Operation forbidden. Requires moderator role."

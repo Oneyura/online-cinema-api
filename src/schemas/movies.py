@@ -1,21 +1,27 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import List, Optional, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, ConfigDict, condecimal
+
+from src.schemas.auth import UserPublicResponseSchema
 
 
 class GenreBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, example="Action")
     model_config = ConfigDict(from_attributes=True)
 
+
 class ActorBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=200, example="Tom Hanks")
     model_config = ConfigDict(from_attributes=True)
 
+
 class DirectorBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=200, example="Christopher Nolan")
     model_config = ConfigDict(from_attributes=True)
+
 
 class CertificationBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=50, example="PG-13")
@@ -112,12 +118,49 @@ class MovieCreate(BaseModel):
         None,
         description="List of Director IDs associated with the movie"
     )
-    star_ids: Optional[List[int]] = Field(
+    actor_ids: Optional[List[int]] = Field(
         None,
-        description="List of Star (Actor) IDs associated with the movie"
+        description="List of Actor IDs associated with the movie"
     )
 
-    model_config = ConfigDict(from_attributes=True) #
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DirectorUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100, description="New name for the director. Must be unique if provided.")
+
+    class Config:
+        from_attributes = True
+
+
+class MovieResponseForDirector(BaseModel):
+    id: int
+    uuid: UUID
+    name: str
+    year: int
+    time: int
+    imdb: float
+    votes: int
+    meta_score: Optional[float] = None
+    gross: Optional[float] = None
+    description: str
+    price: Decimal
+    certification: Optional['CertificationResponse'] = None
+    genres: List['GenreResponse'] = []
+    stars: List['ActorResponse'] = []
+
+    class Config:
+        from_attributes = True
+
+
+class DirectorResponse(BaseModel):
+    id: int = Field(..., description="Unique identifier of the director.")
+    name: str = Field(..., description="Director`s name")
+    movies: List[MovieResponseForDirector] = []
+
+    class Config:
+        from_attributes = True
+
 
 class MovieUpdate(MovieCreate):
     uuid: Optional[UUID] = None
@@ -133,7 +176,7 @@ class MovieUpdate(MovieCreate):
     certification_id: Optional[int] = None
     genre_ids: Optional[List[int]] = None
     director_ids: Optional[List[int]] = None
-    star_ids: Optional[List[int]] = None
+    actor_ids: Optional[List[int]] = None
 
 
 class MovieResponseNested(BaseModel):
@@ -157,12 +200,6 @@ class ActorResponse(ActorBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-class DirectorResponse(DirectorBase):
-    id: int
-    movies: List["MovieResponseNested"] = []
-    model_config = ConfigDict(from_attributes=True)
-
-
 class CertificationResponse(CertificationBase):
     id: int
     movies: List["MovieResponseNested"] = []
@@ -174,41 +211,40 @@ class MovieResponse(MovieCreate):
     certification: CertificationResponse
     genres: List[GenreResponse] = []
     directors: List[DirectorResponse] = []
-    stars: List[ActorResponse] = []
+    actors: List[ActorResponse] = []
 
     genre_ids: Optional[List[int]] = Field(None, exclude=True)
     director_ids: Optional[List[int]] = Field(None, exclude=True)
-    star_ids: Optional[List[int]] = Field(None, exclude=True)
+    actor_ids: Optional[List[int]] = Field(None, exclude=True)
 
     model_config = ConfigDict(from_attributes=True)
 
-# Визначте базову схему для коментарів без вкладених відповідей, щоб уникнути рекурсії
+
 class CommentBase(BaseModel):
     id: int
     user_id: int
     movie_id: int
     text: str
-    created_at: datetime.datetime
-    parent_comment_id: Optional[int] = None # Додано
+    created_at: datetime
+    parent_comment_id: Optional[int] = None
 
     class Config:
         from_attributes = True
 
-# Схема для створення коментаря
+
 class CommentCreate(BaseModel):
     text: str = Field(..., min_length=1, max_length=1000)
     parent_comment_id: Optional[int] = None
 
-# Схема для відповіді на коментар, що включає інформацію про користувача та, можливо, вкладені відповіді
-class CommentResponse(CommentBase):
-    user: "UserModelResponse" # Використовуйте схему для UserModel, яку ви вже маєте
-    replies: Optional[List["CommentResponse"]] = None # Необхідно для вкладених відповідей
 
-# Оновіть CommentResponse для рекурсії, якщо хочете бачити вкладені відповіді
-# Це вимагає використання `update_forward_refs()` після визначення всіх схем
+class CommentResponse(CommentBase):
+    user: UserPublicResponseSchema
+    replies: Optional[List["CommentResponse"]] = None
+
+
 class CommentResponseNested(CommentBase):
-    user: "UserModelResponse"
-    replies: Optional[List["CommentResponseNested"]] = None # Для вкладених відповідей
+    user: UserPublicResponseSchema
+    replies: Optional[List["CommentResponseNested"]] = None
 
 
 class MovieLikeCreate(BaseModel):
@@ -257,6 +293,7 @@ class FavoriteMovieResponse(BaseModel):
     added_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
 
 
 MovieResponseNested.model_rebuild()

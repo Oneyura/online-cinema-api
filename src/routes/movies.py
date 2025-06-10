@@ -22,7 +22,6 @@ from src.database.models.movies import (
     MoviesDirectorsModel,
     MoviesActorsModel
 )
-# Оновлено: Імпортуємо Order та OrderItem з src.database.models.orders
 from src.database.models.orders import Order, OrderItem
 from src.database.models.movies import (
     MovieLikeModel,
@@ -42,7 +41,7 @@ from src.schemas.movies import (
     GenreCreate,
     ActorCreate,
     DirectorCreate,  # Додано для CRUD операцій
-    CertificationCreate, CommentResponseNested,  # Додано для CRUD операцій
+    CertificationCreate, CommentResponseNested, DirectorUpdate,  # Додано для CRUD операцій
 )
 from src.schemas.movies import (
     CommentCreate,
@@ -54,7 +53,7 @@ from src.schemas.movies import (
     FavoriteMovieCreate,
     FavoriteMovieResponse
 )
-from config.dependencies import get_current_user, get_current_moderator  # Auth dependencies
+from src.config.dependencies import get_current_user, get_current_moderator  # Auth dependencies
 
 router = APIRouter(prefix="/movies", tags=["Movies"])
 
@@ -859,3 +858,147 @@ async def delete_certification(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Could not delete certification: {e}")
+
+
+# --- CRUD for Directors (Moderator only) ---
+@router.post("/directors", response_model=DirectorResponse, status_code=status.HTTP_201_CREATED)
+async def create_director(
+        director: DirectorCreate,
+        db: AsyncSession = Depends(get_db),
+        moderator: UserModel = Depends(get_current_moderator)
+) -> DirectorResponse:
+    """
+    Create a new director (Moderator only).
+    """
+    existing_director = await db.execute(select(DirectorModel).filter_by(name=director.name))
+    if existing_director.scalars().first():
+        raise HTTPException(status_code=409, detail="Director with this name already exists")
+
+    new_director = DirectorModel(name=director.name)
+    try:
+        db.add(new_director)
+        await db.commit()
+        await db.refresh(new_director)
+        return new_director
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=f"Could not create director: {e}")
+
+@router.get("/directors/{director_id}", response_model=DirectorResponse)
+async def get_director(
+        director_id: int,
+        db: AsyncSession = Depends(get_db)
+) -> DirectorResponse:
+    """
+    Get information about a specific director by ID, including a list of associated movies.
+    """
+    query = select(DirectorModel).filter_by(id=director_id).options(
+        selectinload(DirectorModel.movies).selectinload(MovieModel.certification),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.genres),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.actors)
+    )
+    result = await db.execute(query)
+    director_obj = result.scalars().first()
+    if not director_obj:
+        raise HTTPException(status_code=404, detail="Director not found.")
+    return director_obj
+
+@router.get("/directors", response_model=List[DirectorResponse])
+async def get_all_directors(
+        db: AsyncSession = Depends(get_db),
+        page: int = Query(1, ge=1),
+        limit: int = Query(10, ge=1, le=100)
+) -> List[DirectorResponse]:
+    """
+    Get a list of all directors with pagination, including their movies.
+    """
+    query = select(DirectorModel).options(
+        selectinload(DirectorModel.movies).selectinload(MovieModel.certification),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.genres),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.actors)
+    )
+    offset = (page - 1) * limit
+    query = query.offset(offset).limit(limit)
+    result = await db.execute(query)
+    directors = result.scalars().unique().all()
+    return directors
+
+
+@router.put("/directors/{director_id}", response_model=DirectorResponse)
+async def update_director(
+        director_id: int,
+        director_update: DirectorUpdate,
+        db: AsyncSession = Depends(get_db),
+        moderator: UserModel = Depends(get_current_moderator)
+) -> DirectorResponse:
+    """
+    Update an existing director by ID (Moderator only).
+    """
+    # Fetch the director and eager-load movies if the response model expects them
+    # For a PUT operation, typically only the updated fields are returned,
+    # but if DirectorResponse includes movies, we need to load them.
+    # If not, the initial `select` without options is fine.
+    director_query = select(DirectorModel).filter_by(id=director_id).options(
+        selectinload(DirectorModel.movies).selectinload(MovieModel.certification),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.genres),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.actors)
+    )
+    director = await db.execute(director_query)
+    director_obj = director.scalars().first()
+
+    if not director_obj:
+        raise HTTPException(status_code=404, detail="Director not found.")
+
+    if director_update.name is not None and director_update.name != director_obj.name:
+        existing_director = await db.execute(select(DirectorModel).filter(
+            (DirectorModel.name == director_update.name) & (DirectorModel.id != director_id)
+        ))
+        if existing_director.scalars().first():
+            raise HTTPException(status_code=409, detail="Director with this name already exists.")
+        director_obj.name = director_update.name
+
+    try:
+        await db.commit()
+        await db.refresh(director_obj)
+        # Refresh again to ensure loaded relationships are up-to-date if any implicit changes
+        # (though not expected for director name update).
+        # This refresh is crucial if the initial query didn't load movies
+        # and DirectorResponse expects them.
+        await db.refresh(director_obj, attribute_names=['movies']) # Explicitly refresh movies relationship if not loaded before
+        return director_obj
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=f"Could not update director: {e}")
+
+
+@router.delete("/directors/{director_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_director(
+        director_id: int,
+        db: AsyncSession = Depends(get_db),
+        moderator: UserModel = Depends(get_current_moderator)
+) -> None:
+    """
+    Delete a director by ID (Moderator only). Prevents deletion if the director is associated with existing movies.
+    """
+    director = await db.execute(select(DirectorModel).filter_by(id=director_id))
+    director_obj = director.scalars().first()
+    if not director_obj:
+        raise HTTPException(status_code=404, detail="Director not found.")
+
+
+    movies_count_stmt = select(func.count(MoviesDirectorsModel.c.movie_id)).filter(
+        MoviesDirectorsModel.c.director_id == director_id
+    )
+    movies_count = await db.execute(movies_count_stmt)
+    if movies_count.scalar_one() > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete director: associated with existing movies."
+        )
+
+    try:
+        await db.delete(director_obj)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Could not delete director: {e}")

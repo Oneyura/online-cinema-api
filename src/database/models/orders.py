@@ -1,7 +1,7 @@
 from typing import List
 
 from sqlalchemy import Column, Integer, ForeignKey, DateTime, Enum, Numeric
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, mapped_column
 import enum
 from datetime import datetime
 
@@ -20,10 +20,12 @@ class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     status = Column(Enum(OrderStatusEnum), nullable=False)
     total_amount = Column(Numeric(10, 2))
+
+    user: Mapped["UserModel"] = relationship("UserModel", back_populates="orders")
 
     payments: Mapped[List["Payments"]] = relationship("Payments", back_populates="order")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
@@ -39,6 +41,6 @@ class OrderItem(Base):
 
     order = relationship("Order", back_populates="items")
     payments_items: Mapped[List["PaymentsItem"]] = relationship("PaymentsItem", back_populates="order_item")
-    movie: Mapped["MovieModel"] = relationship("MovieModel", back_populates="order_item")
+    movie: Mapped["MovieModel"] = relationship("MovieModel", back_populates="order_items")
 
 

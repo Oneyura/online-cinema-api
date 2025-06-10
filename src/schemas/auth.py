@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel, EmailStr, field_validator
 
 from src.database.validators import accounts as accounts_validators
@@ -72,3 +74,14 @@ class TokenRefreshRequestSchema(BaseModel):
 class TokenRefreshResponseSchema(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+# for comments
+class UserPublicResponseSchema(BaseModel):
+    id: int
+    email: EmailStr
+    username: Optional[str] = None
+
+    model_config = {
+        "from_attributes": True
+    }
