@@ -209,10 +209,10 @@ class MovieCreateResponse(BaseModel):
     gross: Optional[float] = None
     description: str
     price: Decimal
-    certification: Optional[CertificationFlatResponse] = None # Use flat
-    genres: List[GenreFlatResponse] = [] # Use flat
-    directors: List[DirectorFlatResponse] = [] # Use flat
-    actors: List[ActorFlatResponse] = [] # Use flat
+    certification: Optional[CertificationFlatResponse] = None
+    genres: List[GenreFlatResponse] = []
+    directors: List[DirectorFlatResponse] = []
+    actors: List[ActorFlatResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -374,10 +374,6 @@ class FavoriteMovieResponse(BaseModel):
 
 
 # --- Rebuild Pydantic models for forward references ---
-# Ensure these are called after all related models are defined.
-# If you have a circular dependency (e.g., MovieResponseForDirector refers to CertificationResponse
-# and CertificationResponse refers to MovieResponseNested, which refers back), you might need
-# to carefully order these or consider making some relationships flat where deep nesting is not required.
 MovieResponseNested.model_rebuild()
 MovieResponseForDirector.model_rebuild()
 GenreResponse.model_rebuild()
