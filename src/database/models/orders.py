@@ -21,11 +21,13 @@ class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     status = Column(Enum(OrderStatusEnum), nullable=False)
     total_amount = Column(Numeric(10, 2))
 
+    # Relationships
+    user: Mapped["UserModel"] = relationship("UserModel", back_populates="orders")
     payments: Mapped[List["PaymentsModel"]] = relationship("PaymentsModel", back_populates="order")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
 
