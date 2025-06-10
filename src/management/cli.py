@@ -5,6 +5,7 @@ Management CLI for Online Cinema API.
 Usage:
     python -m src.management.cli init-data
     python -m src.management.cli init-data --prod
+    python -m src.management.cli test-email --direct --prod
     python -m src.management.cli --help
 """
 
@@ -25,6 +26,7 @@ def print_help():
     print("Available commands:")
     print("  init-data        Initialize default data (user groups, etc.)")
     print("  init-data --prod Initialize default data using production environment")
+    print("  test-email       Test email sending functionality")
     print("  help             Show this help message")
     print()
     print("Usage:")
@@ -34,6 +36,7 @@ def print_help():
     print("Examples:")
     print("  python -m src.management.cli init-data")
     print("  python -m src.management.cli init-data --prod")
+    print("  python -m src.management.cli test-email --direct --prod")
 
 
 async def main():
@@ -52,6 +55,10 @@ async def main():
     
     elif command == "init-data":
         await init_default_data()
+    
+    elif command == "test-email":
+        from src.management.commands.test_email import main as test_email_main
+        await test_email_main()
     
     else:
         print(f"❌ Error: Unknown command '{command}'")
