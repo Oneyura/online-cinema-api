@@ -39,7 +39,7 @@ from src.schemas.movies import (
     GenreCreate,
     ActorCreate,
     DirectorCreate,
-    CertificationCreate, CommentResponseNested, DirectorUpdate, DirectorCreateResponse,
+    CertificationCreate, CommentResponseNested, DirectorCreateResponse, MovieCreateResponse, DirectorUpdate,
 )
 from src.schemas.movies import (
     CommentCreate,
@@ -51,7 +51,7 @@ from src.schemas.movies import (
 )
 from src.config.dependencies import get_current_user, get_current_moderator
 
-router = APIRouter(prefix="/movies", tags=["Movies"])
+router = APIRouter(prefix="/movies")
 
 
 # --- Helper function for applying filters and sorting ---
@@ -474,7 +474,7 @@ async def create_movie(
         movie: MovieCreate,
         db: AsyncSession = Depends(get_db),
         moderator: UserModel = Depends(get_current_moderator)  # Requires moderator role
-) -> MovieResponse:
+) -> MovieCreateResponse:
     """
     Create a new movie (Moderator only).
     """
@@ -536,7 +536,7 @@ async def update_movie(
         movie_update: MovieUpdate,
         db: AsyncSession = Depends(get_db),
         moderator: UserModel = Depends(get_current_moderator)  # Requires moderator role
-) -> MovieResponse:
+) -> MovieUpdate:
     """
     Update an existing movie by ID (Moderator only).
     """
