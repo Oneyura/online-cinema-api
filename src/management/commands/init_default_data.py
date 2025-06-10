@@ -116,7 +116,7 @@ async def create_default_admin(db: AsyncSession) -> None:
         return
     
     # Default admin credentials
-    DEFAULT_ADMIN_EMAIL = "admin@cinema.local"
+    DEFAULT_ADMIN_EMAIL = "admin@example.com"
     DEFAULT_ADMIN_PASSWORD = "CinemaAdmin2024!"
     
     try:
