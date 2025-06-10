@@ -6,8 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import HttpUrl
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from src.config.dependencies import get_db, get_jwt_auth_manager
+from src.config.dependencies import get_db, get_jwt_auth_manager, get_current_user
 from src.database.models.accounts import UserGroupEnum, UserGroupModel, UserModel
 from src.database.models.cart import CartItemModel, CartModel
 from src.database.models.movies import MovieModel
@@ -243,3 +244,171 @@ async def cancel_order(
     await db.commit()
 
     return {"detail": "Order canceled"}
+
+
+@router.post("/orders/create", status_code=status.HTTP_201_CREATED)
+async def create_order_simple(
+    use_cart: bool = True,
+    movie_ids: Optional[List[int]] = None,
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Simple order creation endpoint that uses current user authentication"""
+    
+    if use_cart:
+        # Get items from cart
+        stmt_cart = select(CartModel).where(CartModel.user_id == user.id)
+        result = await db.execute(stmt_cart)
+        cart = result.scalars().first()
+        if not cart:
+            raise HTTPException(status_code=400, detail="Cart is empty")
+
+        stmt_items = select(CartItemModel).where(CartItemModel.cart_id == cart.id)
+        result = await db.execute(stmt_items)
+        cart_items = result.scalars().all()
+        if not cart_items:
+            raise HTTPException(status_code=400, detail="Cart is empty")
+        
+        movie_ids = [item.movie_id for item in cart_items]
+    
+    if not movie_ids:
+        raise HTTPException(status_code=400, detail="No movies specified")
+
+    # Get movies
+    stmt_movies = select(MovieModel).where(MovieModel.id.in_(movie_ids))
+    result = await db.execute(stmt_movies)
+    movies = result.scalars().all()
+    if not movies:
+        raise HTTPException(status_code=400, detail="No available movies found")
+
+    available_movie_ids = [m.id for m in movies]
+
+    # Check for already purchased movies
+    stmt_paid = (
+        select(OrderItem.movie_id)
+        .join(Order)
+        .where(
+            and_(
+                Order.user_id == user.id,
+                Order.status == OrderStatusEnum.COMPLETED,
+                OrderItem.movie_id.in_(available_movie_ids),
+            )
+        )
+    )
+    result = await db.execute(stmt_paid)
+    purchased_movie_ids = {row for row, in result.all()}
+
+    # Check for pending orders
+    stmt_pending = (
+        select(OrderItem.movie_id)
+        .join(Order)
+        .where(
+            and_(
+                Order.user_id == user.id,
+                Order.status == OrderStatusEnum.PENDING,
+                OrderItem.movie_id.in_(available_movie_ids),
+            )
+        )
+    )
+    result = await db.execute(stmt_pending)
+    pending_movie_ids = {row for row, in result.all()}
+
+    filtered_movies = [m for m in movies if m.id not in purchased_movie_ids and m.id not in pending_movie_ids]
+    if not filtered_movies:
+        raise HTTPException(status_code=400, detail="All movies already purchased or pending")
+
+    # Create order
+    total = sum(m.price for m in filtered_movies)
+    order = Order(user_id=user.id, status=OrderStatusEnum.PENDING, total_amount=Decimal(total))
+    db.add(order)
+    await db.flush()
+
+    # Create order items
+    items = [OrderItem(order_id=order.id, movie_id=m.id, price_at_order=m.price) for m in filtered_movies]
+    db.add_all(items)
+    await db.commit()
+    await db.refresh(order)
+
+    return {
+        "id": order.id,
+        "status": order.status.value,
+        "total_amount": float(order.total_amount),
+        "created_at": order.created_at,
+        "item_count": len(items)
+    }
+
+
+@router.get("/orders/", response_model=List[OrderResponseSchema])
+async def get_current_user_orders(
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get orders for current authenticated user"""
+    stmt = (
+        select(Order)
+        .options(selectinload(Order.items))
+        .where(Order.user_id == user.id)
+        .order_by(Order.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    orders = result.scalars().all()
+
+    if not orders:
+        raise HTTPException(status_code=404, detail="No orders found")
+
+    response = []
+    for order in orders:
+        order_items = [
+            OrderItemSchema(movie_id=item.movie_id, price_at_order=item.price_at_order) 
+            for item in order.items
+        ]
+        response.append(
+            OrderResponseSchema(
+                id=order.id,
+                created_at=order.created_at,
+                status=order.status,
+                total_amount=order.total_amount,
+                items=order_items,
+                payment_url=None,
+            )
+        )
+
+    return response
+
+
+@router.get("/orders/simple")
+async def get_current_user_orders_simple(
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get orders for current authenticated user - simple version"""
+    stmt = (
+        select(Order)
+        .options(selectinload(Order.items))
+        .where(Order.user_id == user.id)
+        .order_by(Order.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    orders = result.scalars().all()
+
+    if not orders:
+        return {"orders": [], "message": "No orders found"}
+
+    orders_data = []
+    for order in orders:
+        order_data = {
+            "id": order.id,
+            "created_at": order.created_at.isoformat(),
+            "status": order.status.value,
+            "total_amount": float(order.total_amount),
+            "items": [
+                {
+                    "movie_id": item.movie_id,
+                    "price_at_order": float(item.price_at_order)
+                }
+                for item in order.items
+            ]
+        }
+        orders_data.append(order_data)
+
+    return {"orders": orders_data, "count": len(orders_data)}

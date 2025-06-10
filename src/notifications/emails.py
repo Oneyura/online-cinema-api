@@ -62,7 +62,7 @@ class EmailSender(EmailSenderInterface):
                 # MailHog (development) - no encryption, no auth
                 smtp = aiosmtplib.SMTP(hostname=self._hostname, port=self._port)
                 await smtp.connect()
-                
+
             elif self._hostname == "smtp.sendgrid.net":
                 # SendGrid specific configuration
                 if self._port == 587:
@@ -83,7 +83,7 @@ class EmailSender(EmailSenderInterface):
                     await smtp.connect()
                     if self._use_tls:
                         await smtp.starttls()
-                        
+
             else:
                 # Generic SMTP configuration
                 smtp = aiosmtplib.SMTP(hostname=self._hostname, port=self._port)

@@ -14,6 +14,7 @@ from src.database.models.base import Base
 
 
 class PaymentStatus(enum.Enum):
+    PENDING = enum.auto()
     SUCCESSFUL = enum.auto()
     CANCELED = enum.auto()
     REFUNDED = enum.auto()
