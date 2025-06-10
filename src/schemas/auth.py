@@ -1,7 +1,9 @@
+from pydantic import BaseModel, EmailStr, field_validator, model_validator
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, field_validator
 
+from src.database.validators.accounts import validate_password_strength
 from src.database.validators import accounts as accounts_validators
 
 
@@ -72,8 +74,6 @@ class TokenRefreshResponseSchema(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
-
-# for comments
 class UserPublicResponseSchema(BaseModel):
     id: int
     email: EmailStr
@@ -82,3 +82,22 @@ class UserPublicResponseSchema(BaseModel):
     model_config = {
         "from_attributes": True
     }
+
+
+class PasswordChangeRequestSchema(BaseModel):
+    old_password: str
+    new_password: str
+    new_password_confirm: str
+
+    @field_validator("new_password")
+    def password_complexity(cls, v):
+        validate_password_strength(v)
+        return v
+
+    @model_validator(mode="before")
+    def passwords_match(cls, values):
+        new_password = values.get("new_password")
+        new_password_confirm = values.get("new_password_confirm")
+        if new_password != new_password_confirm:
+            raise ValueError("New password and confirmation do not match")
+        return values
