@@ -695,7 +695,7 @@ async def delete_genre(
 
 
 # --- CRUD for Actors (Moderator only) ---
-@router.post("/actors", response_model=ActorResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/actors", response_model=ActorCreate, status_code=status.HTTP_201_CREATED)
 async def create_actor(
         actor: ActorCreate,
         db: AsyncSession = Depends(get_db),
@@ -768,7 +768,7 @@ async def delete_actor(
 
 
 # --- CRUD for Certifications (Moderator only) - Adding these based on import CertificationCreate
-@router.post("/certifications", response_model=CertificationResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/certifications", response_model=CertificationCreate, status_code=status.HTTP_201_CREATED)
 async def create_certification(
         certification: CertificationCreate,
         db: AsyncSession = Depends(get_db),
