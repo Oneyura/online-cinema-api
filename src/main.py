@@ -32,5 +32,4 @@ app.include_router(cart_router, prefix="/api")
 app.include_router(order_router, prefix="/api", tags=["Orders"])
 app.include_router(payments_router, prefix="/api", tags=["Payments"])
 app.include_router(accounts_router, prefix="/api/accounts", tags=["Authentication"])
-app.include_router(movie_router, prefix="/api")
-
+app.include_router(movie_router, prefix="/api", tags=["Movies"])

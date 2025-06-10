@@ -51,7 +51,7 @@ from src.schemas.movies import (
 )
 from src.config.dependencies import get_current_user, get_current_moderator
 
-router = APIRouter(prefix="/movies", tags=["Movies"])
+router = APIRouter(prefix="/movies")
 
 
 # --- Helper function for applying filters and sorting ---
