@@ -31,14 +31,18 @@ class CertificationBase(BaseModel):
 class GenreCreate(GenreBase):
     pass
 
+
 class ActorCreate(ActorBase):
     pass
+
 
 class DirectorCreate(DirectorBase):
     pass
 
+
 class CertificationCreate(CertificationBase):
     pass
+
 
 class MovieCreate(BaseModel):
     uuid: UUID = Field(
@@ -261,6 +265,7 @@ class MovieLikeCreate(BaseModel):
         example=True
     )
 
+
 class MovieLikeResponse(BaseModel):
     id: int
     user_id: int
@@ -280,6 +285,7 @@ class MovieRatingCreate(BaseModel):
         example=9
     )
 
+
 class MovieRatingResponse(BaseModel):
     id: int
     user_id: int
@@ -292,6 +298,7 @@ class MovieRatingResponse(BaseModel):
 
 class FavoriteMovieCreate(BaseModel):
     pass
+
 
 class FavoriteMovieResponse(BaseModel):
     id: int

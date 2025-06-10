@@ -4,10 +4,9 @@ import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
-from typing import List, Optional, Union, Literal
-from uuid import UUID
+from typing import List, Optional, Literal
 
-from sqlalchemy.orm import relationship, selectinload
+from sqlalchemy.orm import  selectinload
 
 from src.database.models import CommentModel
 from src.database.models import UserModel
@@ -20,9 +19,8 @@ from src.database.models.movies import (
     CertificationModel,
     MoviesGenresModel,
     MoviesDirectorsModel,
-    MoviesActorsModel
 )
-from src.database.models.orders import Order, OrderItem
+from src.database.models.orders import OrderItem
 from src.database.models.movies import (
     MovieLikeModel,
     MovieRatingModel,
@@ -46,11 +44,9 @@ from src.schemas.movies import (
 from src.schemas.movies import (
     CommentCreate,
     CommentResponse,
-    MovieLikeCreate,
     MovieLikeResponse,
     MovieRatingCreate,
     MovieRatingResponse,
-    FavoriteMovieCreate,
     FavoriteMovieResponse
 )
 from src.config.dependencies import get_current_user, get_current_moderator
@@ -203,14 +199,13 @@ async def like_dislike_movie(
     """
     Like or dislike a movie. A user can only have one like/dislike status per movie.
     """
-    # Check if movie exists
     movie = await db.execute(select(MovieModel).filter_by(id=movie_id))
     if not movie.scalars().first():
         raise HTTPException(status_code=404, detail="Movie not found")
 
     # Check for existing like/dislike
     existing_like = await db.execute(
-            select(MovieLikeModel).filter_by(user_id=current_user.id, movie_id=movie_id) # Використовуємо current_user.id
+            select(MovieLikeModel).filter_by(user_id=current_user.id, movie_id=movie_id)
     )
     existing_like = existing_like.scalars().first()
 
@@ -222,7 +217,7 @@ async def like_dislike_movie(
             )
         # Update existing like/dislike
         existing_like.is_liked = is_liked
-        existing_like.created_at = datetime.datetime.now()  # Update timestamp
+        existing_like.created_at = datetime.datetime.now()
         db.add(existing_like)
         await db.commit()
         await db.refresh(existing_like)
@@ -230,7 +225,7 @@ async def like_dislike_movie(
     else:
         # Create new like/dislike
         new_like = MovieLikeModel(
-            user_id=current_user.id, # Використовуємо current_user.id
+            user_id=current_user.id,
             movie_id=movie_id,
             is_liked=is_liked
         )
@@ -268,19 +263,17 @@ async def write_comment(
         user_id=current_user.id,
         movie_id=movie_id,
         text=comment.text,
-        parent_comment_id=comment.parent_comment_id # Тепер зберігаємо батьківський ID
+        parent_comment_id=comment.parent_comment_id
     )
     db.add(new_comment)
     await db.commit()
     await db.refresh(new_comment)
 
-    # Populate user and potentially parent_comment/replies for response
-    # Якщо CommentResponse має 'user' і 'replies', потрібно завантажити їх
-    await db.refresh(new_comment, attribute_names=['user', 'parent_comment', 'replies']) # Додаємо replies для рекурсивного завантаження
+    await db.refresh(new_comment, attribute_names=['user', 'parent_comment', 'replies'])
     return new_comment
 
 
-@router.get("/{movie_id}/comments", response_model=List[CommentResponseNested]) # Використовуйте CommentResponseNested
+@router.get("/{movie_id}/comments", response_model=List[CommentResponseNested])
 async def get_movie_comments(
         movie_id: int,
         db: AsyncSession = Depends(get_db),
@@ -293,7 +286,7 @@ async def get_movie_comments(
     query = (
         select(CommentModel)
         .filter(CommentModel.movie_id == movie_id)
-        .filter(CommentModel.parent_comment_id.is_(None)) # Фільтруємо, щоб отримати лише коментарі верхнього рівня
+        .filter(CommentModel.parent_comment_id.is_(None))
     )
 
     query = query.order_by(CommentModel.created_at.desc())
@@ -304,13 +297,11 @@ async def get_movie_comments(
     # Eager load user for comments and recursively load replies
     query = query.options(
         selectinload(CommentModel.user),
-        selectinload(CommentModel.replies).selectinload(CommentModel.user).selectinload(CommentModel.replies) # Рекурсивно завантажуємо відповіді
-        # Ви можете розширити .selectinload(CommentModel.replies) ще раз, щоб отримати більше рівнів вкладеності
-        # Або використовувати 'recursion_depth' у більш складних випадках, але це простіший варіант для кількох рівнів
+        selectinload(CommentModel.replies).selectinload(CommentModel.user).selectinload(CommentModel.replies)
     )
 
     result = await db.execute(query)
-    comments = result.scalars().unique().all() # .unique() може допомогти уникнути дублікатів при складному eager loading
+    comments = result.scalars().unique().all()
     return comments
 
 
@@ -329,12 +320,12 @@ async def add_movie_to_favorites(
         raise HTTPException(status_code=404, detail="Movie not found")
 
     existing_favorite = await db.execute(
-        select(FavoriteMovieModel).filter_by(user_id=current_user.id, movie_id=movie_id) # Використовуємо current_user.id
+        select(FavoriteMovieModel).filter_by(user_id=current_user.id, movie_id=movie_id)
     )
     if existing_favorite.scalars().first():
         raise HTTPException(status_code=409, detail="Movie already in favorites")
 
-    new_favorite = FavoriteMovieModel(user_id=current_user.id, movie_id=movie_id) # Використовуємо current_user.id
+    new_favorite = FavoriteMovieModel(user_id=current_user.id, movie_id=movie_id)
     db.add(new_favorite)
     await db.commit()
     await db.refresh(new_favorite)
@@ -351,7 +342,7 @@ async def remove_movie_from_favorites(
     Remove a movie from the current user's favorites list.
     """
     favorite_item = await db.execute(
-        select(FavoriteMovieModel).filter_by(user_id=current_user.id, movie_id=movie_id) # Використовуємо current_user.id
+        select(FavoriteMovieModel).filter_by(user_id=current_user.id, movie_id=movie_id)
     )
     favorite_item = favorite_item.scalars().first()
 
@@ -381,13 +372,10 @@ async def get_favorite_movies(
     """
     Get the current user's favorite movies with search, filter, and sort options.
     """
-    # Start with a query to fetch favorite movies for the current user
-    # Join with MovieModel to enable filtering/sorting on movie attributes
     query = select(MovieModel).join(FavoriteMovieModel).filter(
-        FavoriteMovieModel.user_id == current_user.id # Використовуємо current_user.id
+        FavoriteMovieModel.user_id == current_user.id
     )
 
-    # Apply filters and sorting using the helper function
     query = await apply_movie_filters_and_sort(
         query, db, search, year, imdb_min, imdb_max, genre_name, director_name, actor_name, sort_by, sort_order
     )
@@ -406,11 +394,6 @@ async def get_genres_with_counts(db: AsyncSession = Depends(get_db)) -> List[Gen
     """
     Get a list of all genres with the count of movies in each.
     """
-    # Perform a LEFT JOIN with movies and group by genre to count movies
-    # This part of the query is for counting, but the response_model expects nested movies
-    # For now, if GenreResponse includes 'movies', Pydantic will load them.
-    # If you need just the count, a custom schema or manual mapping is better.
-    # The current implementation eager loads the `movies` relationship in the response.
     genres_query = select(GenreModel).options(selectinload(GenreModel.movies))
     result = await db.execute(genres_query)
     genres = result.scalars().all()
@@ -459,9 +442,8 @@ async def rate_movie(
     if not movie_exists.scalars().first():
         raise HTTPException(status_code=404, detail="Movie not found")
 
-    # Check for existing rating by this user for this movie
     existing_rating = await db.execute(
-        select(MovieRatingModel).filter_by(user_id=current_user.id, movie_id=movie_id) # Використовуємо current_user.id
+        select(MovieRatingModel).filter_by(user_id=current_user.id, movie_id=movie_id)
     )
     existing_rating = existing_rating.scalars().first()
 
@@ -501,7 +483,6 @@ async def create_movie(
     if not cert.scalars().first():
         raise HTTPException(status_code=400, detail="Certification ID not found")
 
-    # Create movie instance
     new_movie = MovieModel(
         uuid=movie.uuid,
         name=movie.name,
@@ -516,7 +497,6 @@ async def create_movie(
         certification_id=movie.certification_id
     )
 
-    # Handle many-to-many relationships
     if movie.genre_ids:
         genres = await db.execute(select(GenreModel).filter(GenreModel.id.in_(movie.genre_ids)))
         found_genres = genres.scalars().all()
@@ -623,7 +603,6 @@ async def delete_movie(
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
 
-    # Оновлено: Перевірка на наявність замовлень за допомогою OrderItem
     purchases_count = await db.execute(
         select(func.count(OrderItem.id)).filter_by(movie_id=movie_id)
     )
@@ -643,7 +622,7 @@ async def delete_movie(
 
 
 # --- CRUD for Genres (Moderator only) ---
-@router.post("/genres", response_model=GenreResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/genres", response_model=GenreCreate, status_code=status.HTTP_201_CREATED)
 async def create_genre(
         genre: GenreCreate,
         db: AsyncSession = Depends(get_db),
@@ -667,7 +646,7 @@ async def create_genre(
 @router.put("/genres/{genre_id}", response_model=GenreResponse)
 async def update_genre(
         genre_id: int,
-        genre_update: GenreCreate,  # Re-use Create schema for update fields
+        genre_update: GenreCreate,
         db: AsyncSession = Depends(get_db),
         moderator: UserModel = Depends(get_current_moderator)
 ) -> GenreResponse:
@@ -962,11 +941,7 @@ async def update_director(
     try:
         await db.commit()
         await db.refresh(director_obj)
-        # Refresh again to ensure loaded relationships are up-to-date if any implicit changes
-        # (though not expected for director name update).
-        # This refresh is crucial if the initial query didn't load movies
-        # and DirectorResponse expects them.
-        await db.refresh(director_obj, attribute_names=['movies']) # Explicitly refresh movies relationship if not loaded before
+        await db.refresh(director_obj, attribute_names=['movies'])
         return director_obj
     except Exception as e:
         await db.rollback()
