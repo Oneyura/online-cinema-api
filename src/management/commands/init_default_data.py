@@ -2,8 +2,8 @@
 """
 Initialize default data for the application.
 
-This command creates essential default data like user groups that are required
-for the application to function properly.
+This command creates essential default data like user groups and default admin
+that are required for the application to function properly.
 
 Usage:
     python -m src.management init-data
@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.config.settings import BaseAppSettings, ProductionSettings, Settings
-from src.database.models.accounts import UserGroupEnum, UserGroupModel
+from src.database.models.accounts import UserGroupEnum, UserGroupModel, UserModel
 
 
 def get_settings() -> BaseAppSettings:
@@ -93,6 +93,56 @@ async def create_default_user_groups(db: AsyncSession) -> None:
         print("✨ All default user groups already exist!")
 
 
+async def create_default_admin(db: AsyncSession) -> None:
+    """Create default admin user if no admin exists."""
+    print("👤 Checking for admin users...")
+    
+    # Check if admin group exists
+    admin_group = await db.scalar(
+        select(UserGroupModel).where(UserGroupModel.name == UserGroupEnum.ADMIN)
+    )
+    
+    if not admin_group:
+        print("  ❌ Admin group not found! Cannot create admin user.")
+        return
+    
+    # Check if any admin user exists
+    existing_admin = await db.scalar(
+        select(UserModel).where(UserModel.group_id == admin_group.id)
+    )
+    
+    if existing_admin:
+        print(f"  ℹ️  Admin user already exists: {existing_admin.email}")
+        return
+    
+    # Default admin credentials
+    DEFAULT_ADMIN_EMAIL = "admin@example.com"
+    DEFAULT_ADMIN_PASSWORD = "CinemaAdmin2024!"
+    
+    try:
+        # Create default admin user
+        default_admin = UserModel.create(
+            email=DEFAULT_ADMIN_EMAIL,
+            raw_password=DEFAULT_ADMIN_PASSWORD,
+            group_id=admin_group.id
+        )
+        default_admin.is_active = True  # Activate admin immediately
+        
+        db.add(default_admin)
+        await db.commit()
+        await db.refresh(default_admin)
+        
+        print(f"  ✅ Created default admin user!")
+        print(f"     📧 Email: {DEFAULT_ADMIN_EMAIL}")
+        print(f"     🔑 Password: {DEFAULT_ADMIN_PASSWORD}")
+        print(f"     🆔 User ID: {default_admin.id}")
+        print(f"     ⚠️  IMPORTANT: Change this password immediately after first login!")
+        
+    except Exception as e:
+        print(f"  ❌ Failed to create admin user: {e}")
+        await db.rollback()
+
+
 async def init_default_data() -> None:
     """Initialize all default data."""
     print("🚀 Initializing default data for Online Cinema API...")
@@ -102,6 +152,7 @@ async def init_default_data() -> None:
         
         async with AsyncSessionLocal() as db:
             await create_default_user_groups(db)
+            await create_default_admin(db)
         
         print("✅ Default data initialization completed successfully!")
         
