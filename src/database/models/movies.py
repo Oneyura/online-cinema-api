@@ -10,7 +10,7 @@ from sqlalchemy import (
     Table,
     Column,
     Integer,
-    Boolean, DateTime,
+    Boolean, DateTime, Numeric,
 )
 import datetime
 from sqlalchemy.orm import mapped_column, Mapped, relationship
@@ -124,7 +124,7 @@ class MovieModel(Base):
     meta_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     gross: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    price: Mapped[float] = mapped_column(DECIMAL(10, 2), nullable=False)
+    price = Column(Numeric(precision=10, scale=2), nullable=False)
     comments: Mapped[List["CommentModel"]] = relationship(
         "CommentModel",
         back_populates="movie"
