@@ -1,7 +1,6 @@
 from pydantic import BaseModel, EmailStr, field_validator, model_validator
-from pydantic import validator, root_validator
 
-from src.schemas.accounts import validate_password
+from src.database.validators.accounts import validate_password_strength
 from src.database.validators import accounts as accounts_validators
 
 
@@ -80,7 +79,7 @@ class PasswordChangeRequestSchema(BaseModel):
 
     @field_validator("new_password")
     def password_complexity(cls, v):
-        validate_password(v)
+        validate_password_strength(v)
         return v
 
     @model_validator(mode="before")
