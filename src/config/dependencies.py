@@ -76,8 +76,9 @@ def get_email_sender(
     return EmailSender(
         hostname=settings.EMAIL_HOST,
         port=settings.EMAIL_PORT,
-        email=settings.EMAIL_HOST_USER,
+        username=settings.EMAIL_HOST_USER,
         password=settings.EMAIL_HOST_PASSWORD,
+        sender_email=settings.EMAIL_FROM,
         use_tls=settings.EMAIL_USE_TLS,
         template_dir="src/templates/email",
         activation_email_template_name="activation.html",

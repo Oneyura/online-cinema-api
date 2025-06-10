@@ -15,8 +15,9 @@ class EmailSender(EmailSenderInterface):
         self,
         hostname: str,
         port: int,
-        email: str,
+        username: str,
         password: str,
+        sender_email: str,
         use_tls: bool,
         template_dir: str,
         activation_email_template_name: str,
@@ -26,8 +27,9 @@ class EmailSender(EmailSenderInterface):
     ):
         self._hostname = hostname
         self._port = port
-        self._email = email
+        self._username = username  # For SMTP auth (e.g. "apikey")
         self._password = password
+        self._sender_email = sender_email  # For From header (e.g. "noreply@fast-furious.work.gd")
         self._use_tls = use_tls
         self._activation_email_template_name = activation_email_template_name
         self._activation_complete_email_template_name = activation_complete_email_template_name
@@ -49,7 +51,7 @@ class EmailSender(EmailSenderInterface):
             BaseEmailError: If sending the email fails.
         """
         message = MIMEMultipart()
-        message["From"] = self._email
+        message["From"] = self._sender_email  # Use sender_email instead of username
         message["To"] = recipient
         message["Subject"] = subject
         message.attach(MIMEText(html_content, "html"))
@@ -91,10 +93,10 @@ class EmailSender(EmailSenderInterface):
                     await smtp.starttls()
 
             # Login with credentials if provided and not MailHog
-            if self._email and self._password and self._hostname != "mailhog":
-                await smtp.login(self._email, self._password)
+            if self._username and self._password and self._hostname != "mailhog":
+                await smtp.login(self._username, self._password)
 
-            await smtp.sendmail(self._email, [recipient], message.as_string())
+            await smtp.sendmail(self._sender_email, [recipient], message.as_string())
             await smtp.quit()
 
             logging.info(f"Email sent successfully to {recipient}")
