@@ -142,7 +142,7 @@ async def get_current_user(
         raise credentials_exception
 
     from sqlalchemy.orm import joinedload
-    
+
     result = await db.execute(
         select(UserModel)
         .options(joinedload(UserModel.group))
@@ -164,8 +164,9 @@ async def get_current_user(
 
 
 async def get_current_moderator(current_user: UserModel = Depends(get_current_user)) -> UserModel:
+    if current_user.group != "moderator" or current_user.group != "admin":
     from src.database.models.accounts import UserGroupEnum
-    
+
     if current_user.group.name not in [UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Operation forbidden. Requires moderator role."
