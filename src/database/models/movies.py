@@ -1,5 +1,5 @@
 from typing import Optional, List
-from uuid import UUID
+import uuid
 from sqlalchemy import (
     String,
     Float,
@@ -14,6 +14,7 @@ from sqlalchemy import (
 )
 import datetime
 from sqlalchemy.orm import mapped_column, Mapped, relationship
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 from src.database.models.base import Base
 
@@ -115,7 +116,7 @@ class MovieModel(Base):
     __tablename__ = "movies"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    uuid: Mapped[UUID] = mapped_column(unique=True, nullable=False)
+    uuid = Column(PG_UUID(as_uuid=True), default=uuid.uuid4, unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     year: Mapped[int] = mapped_column(nullable=False)
     time: Mapped[int] = mapped_column(nullable=False)
