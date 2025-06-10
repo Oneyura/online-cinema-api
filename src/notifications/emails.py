@@ -131,3 +131,17 @@ class EmailSender(EmailSenderInterface):
         html_content = template.render(email=email, login_link=login_link)
         subject = "Your Password Has Been Successfully Reset"
         await self._send_email(email, subject, html_content)
+
+    async def send_custom_template_email(self, email: str, subject: str, template_name: str, context: dict) -> None:
+        """
+        Send an email with a custom template and subject.
+
+        Args:
+            email (str): The recipient's email address.
+            subject (str): The subject of the email.
+            template_name (str): Jinja2 template file name.
+            context (dict): Context data for template rendering.
+        """
+        template = self._env.get_template(template_name)
+        html_content = template.render(**context)
+        await self._send_email(email, subject, html_content)

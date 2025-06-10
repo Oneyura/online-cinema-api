@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Payment Confirmation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f7f9fc;
+            text-align: center;
+            padding: 50px;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            display: inline-block;
+        }
+        .success {
+            color: green;
+            font-size: 48px;
+        }
+        .message {
+            font-size: 18px;
+            margin: 20px 0;
+        }
+        .btn {
+            padding: 10px 20px;
+            background: #007BFF;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success">✓</div>
+        <h2>Thank you for your payment!</h2>
+        <div class="message">
+            Your payment was successful.<br>
+            An email receipt has been sent to your inbox.
+        </div>
+        <a class="btn" href="/user/orders">View My Orders</a>
+    </div>
+</body>
+</html>
