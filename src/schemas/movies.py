@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, ConfigDict, condecimal
 from src.schemas.auth import UserPublicResponseSchema
 
 
+# --- Base Schemas (often used for input or simple output) ---
 class GenreBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, example="Action")
     model_config = ConfigDict(from_attributes=True)
@@ -28,6 +29,7 @@ class CertificationBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# --- Create Schemas (for incoming request bodies) ---
 class GenreCreate(GenreBase):
     pass
 
@@ -44,12 +46,34 @@ class CertificationCreate(CertificationBase):
     pass
 
 
+# --- Response Schemas for POST/PUT operations (simplified, no reverse relationships) ---
+class GenreCreateResponse(BaseModel):
+    id: int = Field(..., description="Unique identifier of the genre.")
+    name: str = Field(..., description="Genre name")
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ActorCreateResponse(BaseModel):
+    id: int = Field(..., description="Unique identifier of the actor.")
+    name: str = Field(..., description="Actor's name")
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DirectorCreateResponse(BaseModel):
+    id: int = Field(..., description="Unique identifier of the director.")
+    name: str = Field(..., description="Director's name")
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CertificationCreateResponse(BaseModel):
+    id: int = Field(..., description="Unique identifier of the certification.")
+    name: str = Field(..., description="Certification name")
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Movie Schemas ---
+
 class MovieCreate(BaseModel):
-    uuid: UUID = Field(
-        ...,
-        example="123e4567-e89b-12d3-a456-426614174000",
-        description="Unique identifier for the movie"
-    )
     name: str = Field(
         ...,
         min_length=1,
@@ -130,18 +154,72 @@ class MovieCreate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class DirectorCreateResponse(BaseModel):
-    id: int = Field(..., description="Unique identifier of the director.")
-    name: str = Field(..., description="Director's name")
-    class Config:
-        from_attributes = True
+class MovieUpdate(MovieCreate):
+    name: Optional[str] = None
+    year: Optional[int] = None
+    time: Optional[int] = None
+    imdb: Optional[float] = None
+    votes: Optional[int] = None
+    meta_score: Optional[float] = None
+    gross: Optional[float] = None
+    description: Optional[str] = None
+    price: Optional[condecimal(max_digits=10, decimal_places=2)] = None
+    certification_id: Optional[int] = None
+    genre_ids: Optional[List[int]] = None
+    director_ids: Optional[List[int]] = None
+    actor_ids: Optional[List[int]] = None
+
+# --- Flat Response Schemas for nested objects within MovieCreateResponse ---
+class DirectorFlatResponse(BaseModel):
+    id: int
+    name: str
+    model_config = ConfigDict(from_attributes=True)
+
+class ActorFlatResponse(BaseModel):
+    id: int
+    name: str
+    model_config = ConfigDict(from_attributes=True)
+
+class GenreFlatResponse(BaseModel):
+    id: int
+    name: str
+    model_config = ConfigDict(from_attributes=True)
+
+class CertificationFlatResponse(BaseModel):
+    id: int
+    name: str
+    model_config = ConfigDict(from_attributes=True)
 
 
-class DirectorUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100, description="New name for the director. Must be unique if provided.")
+# --- Movie Response for POST/PUT (uses flat nested schemas) ---
+class MovieCreateResponse(BaseModel):
+    id: int
+    uuid: UUID
+    name: str
+    year: int
+    time: int
+    imdb: float
+    votes: int
+    meta_score: Optional[float] = None
+    gross: Optional[float] = None
+    description: str
+    price: Decimal
+    certification: Optional[CertificationFlatResponse] = None
+    genres: List[GenreFlatResponse] = []
+    directors: List[DirectorFlatResponse] = []
+    actors: List[ActorFlatResponse] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Movie Response for detailed GET requests (can have nested reverse relationships) ---
+class MovieResponseNested(BaseModel):
+    id: int
+    uuid: UUID
+    name: str
+    year: int
+    imdb: float
+    model_config = ConfigDict(from_attributes=True)
 
 
 class MovieResponseForDirector(BaseModel):
@@ -160,42 +238,6 @@ class MovieResponseForDirector(BaseModel):
     genres: List['GenreResponse'] = []
     actors: List['ActorResponse'] = []
 
-    class Config:
-        from_attributes = True
-
-
-class DirectorResponse(BaseModel):
-    id: int = Field(..., description="Unique identifier of the director.")
-    name: str = Field(..., description="Director`s name")
-    movies: List[MovieResponseForDirector] = []
-
-    class Config:
-        from_attributes = True
-
-
-class MovieUpdate(MovieCreate):
-    uuid: Optional[UUID] = None
-    name: Optional[str] = None
-    year: Optional[int] = None
-    time: Optional[int] = None
-    imdb: Optional[float] = None
-    votes: Optional[int] = None
-    meta_score: Optional[float] = None
-    gross: Optional[float] = None
-    description: Optional[str] = None
-    price: Optional[condecimal(max_digits=10, decimal_places=2)] = None
-    certification_id: Optional[int] = None
-    genre_ids: Optional[List[int]] = None
-    director_ids: Optional[List[int]] = None
-    actor_ids: Optional[List[int]] = None
-
-
-class MovieResponseNested(BaseModel):
-    id: int
-    uuid: UUID
-    name: str
-    year: int
-    imdb: float
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -211,6 +253,18 @@ class ActorResponse(ActorBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class DirectorResponse(DirectorBase):
+    id: int
+    movies: List[MovieResponseForDirector] = []
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DirectorUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100, description="New name for the director. Must be unique if provided.")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class CertificationResponse(CertificationBase):
     id: int
     movies: List["MovieResponseNested"] = []
@@ -219,11 +273,13 @@ class CertificationResponse(CertificationBase):
 
 class MovieResponse(MovieCreate):
     id: int = Field(..., description="The unique ID of the movie")
+    uuid: UUID # Keep uuid for response
     certification: CertificationResponse
     genres: List[GenreResponse] = []
     directors: List[DirectorResponse] = []
     actors: List[ActorResponse] = []
 
+    # These fields are for input, exclude them from output
     genre_ids: Optional[List[int]] = Field(None, exclude=True)
     director_ids: Optional[List[int]] = Field(None, exclude=True)
     actor_ids: Optional[List[int]] = Field(None, exclude=True)
@@ -231,6 +287,7 @@ class MovieResponse(MovieCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+# --- Comment Schemas ---
 class CommentBase(BaseModel):
     id: int
     user_id: int
@@ -239,8 +296,7 @@ class CommentBase(BaseModel):
     created_at: datetime
     parent_comment_id: Optional[int] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CommentCreate(BaseModel):
@@ -258,6 +314,7 @@ class CommentResponseNested(CommentBase):
     replies: Optional[List["CommentResponseNested"]] = None
 
 
+# --- Like/Rating/Favorite Schemas ---
 class MovieLikeCreate(BaseModel):
     is_liked: bool = Field(
         ...,
@@ -309,16 +366,17 @@ class FavoriteMovieResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-
+# --- Rebuild Pydantic models for forward references ---
+# Ensure these are called after all related models are defined.
 MovieResponseNested.model_rebuild()
+MovieResponseForDirector.model_rebuild()
 GenreResponse.model_rebuild()
 ActorResponse.model_rebuild()
 DirectorResponse.model_rebuild()
 CertificationResponse.model_rebuild()
 MovieResponse.model_rebuild()
 CommentResponse.model_rebuild()
+CommentResponseNested.model_rebuild()
 MovieLikeResponse.model_rebuild()
 MovieRatingResponse.model_rebuild()
 FavoriteMovieResponse.model_rebuild()
-CommentResponse.update_forward_refs()
-CommentResponseNested.update_forward_refs()
