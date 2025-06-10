@@ -35,7 +35,7 @@ from src.schemas.auth import (
 )
 from src.security.interfaces import JWTAuthManagerInterface
 from src.services.auth_service import AuthService
-from src.tasks import send_activation_email, send_activation_complete_email, send_password_reset_email
+from src.tasks import send_activation_email, send_activation_complete_email, send_password_reset_email, send_password_reset_complete_email
 
 accounts_router = APIRouter()
 
@@ -334,6 +334,9 @@ async def reset_password(
         user.password = data.password
         await db.run_sync(lambda s: s.delete(token_record))
         await db.commit()
+        
+        # Send password reset complete email
+        send_password_reset_complete_email.delay(user.id)
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(
@@ -602,3 +605,371 @@ async def logout_user(
     )
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@accounts_router.get(
+    "/activate",
+    response_model=MessageResponseSchema,
+    summary="Activate User Account via Email Link",
+    description="Activate a user's account using the activation token from email link.",
+    status_code=status.HTTP_200_OK,
+    responses={
+        400: {
+            "description": "Bad Request - The activation token is invalid or expired, "
+            "or the user account is already active.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "invalid_token": {
+                            "summary": "Invalid Token",
+                            "value": {"detail": "Invalid or expired activation token."},
+                        },
+                        "already_active": {
+                            "summary": "Account Already Active",
+                            "value": {"detail": "User account is already active."},
+                        },
+                    }
+                }
+            },
+        },
+    },
+)
+async def activate_account_via_link(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponseSchema:
+    """
+    Endpoint to activate a user's account via email link.
+    
+    This is a GET endpoint that accepts the activation token as a query parameter,
+    making it compatible with email links. It performs the same logic as the POST
+    activate endpoint but is more user-friendly for email activation workflows.
+
+    Args:
+        token (str): The activation token from the email link.
+        db (AsyncSession): The asynchronous database session.
+
+    Returns:
+        MessageResponseSchema: A response message confirming successful activation.
+
+    Raises:
+        HTTPException:
+            - 400 Bad Request if the activation token is invalid or expired.
+            - 400 Bad Request if the user account is already active.
+    """
+    # Find the token in the database
+    stmt = (
+        select(ActivationTokenModel)
+        .options(joinedload(ActivationTokenModel.user))
+        .where(ActivationTokenModel.token == token)
+    )
+    result = await db.execute(stmt)
+    token_record = result.scalars().first()
+
+    now_utc = datetime.now(timezone.utc)
+    if not token_record or cast(datetime, token_record.expires_at).replace(tzinfo=timezone.utc) < now_utc:
+        if token_record:
+            await db.delete(token_record)
+            await db.commit()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired activation token.")
+
+    user = token_record.user
+    if user.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User account is already active.")
+
+    user.is_active = True
+    await db.delete(token_record)
+    
+    try:
+        await db.commit()
+        
+        # Send activation complete email
+        send_activation_complete_email.delay(user.id)
+    except SQLAlchemyError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail="An error occurred during account activation."
+        )
+
+    return MessageResponseSchema(message="Your account has been successfully activated!")
+
+
+@accounts_router.get(
+    "/password-reset/confirm",
+    summary="Password Reset Confirmation Form",
+    description="Display a password reset form for the user to enter their new password.",
+    responses={
+        200: {
+            "description": "Password reset form displayed",
+            "content": {"text/html": {"example": "<html>...</html>"}},
+        },
+        400: {
+            "description": "Invalid or expired token",
+            "content": {"text/html": {"example": "<html>Error: Invalid token</html>"}},
+        },
+    },
+)
+async def password_reset_form(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Display a password reset form when user clicks the link in their email.
+    
+    This endpoint validates the token and shows an HTML form for the user
+    to enter their new password. The form submits to the complete endpoint.
+
+    Args:
+        token (str): The password reset token from the email link.
+        db (AsyncSession): The asynchronous database session.
+
+    Returns:
+        HTMLResponse: An HTML form for password reset or error page.
+    """
+    from fastapi.responses import HTMLResponse
+    
+    # Validate token exists and is not expired
+    stmt = (
+        select(PasswordResetTokenModel)
+        .options(joinedload(PasswordResetTokenModel.user))
+        .where(PasswordResetTokenModel.token == token)
+    )
+    result = await db.execute(stmt)
+    token_record = result.scalars().first()
+
+    if not token_record:
+        error_html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Invalid Token</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f4f4f4; }
+                .container { max-width: 500px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                .error { color: #d32f2f; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h2 class="error">Invalid or Expired Token</h2>
+                <p>The password reset token is invalid or has expired.</p>
+                <p>Please request a new password reset link.</p>
+            </div>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=error_html, status_code=400)
+
+    # Check if token is expired
+    expires_at = cast(datetime, token_record.expires_at).replace(tzinfo=timezone.utc)
+    if expires_at < datetime.now(timezone.utc):
+        # Clean up expired token
+        await db.delete(token_record)
+        await db.commit()
+        
+        error_html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Expired Token</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+                body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f4f4f4; }
+                .container { max-width: 500px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                .error { color: #d32f2f; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h2 class="error">Token Expired</h2>
+                <p>The password reset token has expired.</p>
+                <p>Please request a new password reset link.</p>
+            </div>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=error_html, status_code=400)
+
+    user = token_record.user
+    
+    # Generate password reset form
+    form_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Reset Your Password</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body {{ 
+                font-family: Arial, sans-serif; 
+                background-color: #f4f4f4; 
+                margin: 0; 
+                padding: 50px 20px; 
+            }}
+            .container {{ 
+                max-width: 500px; 
+                margin: 0 auto; 
+                background: white; 
+                padding: 30px; 
+                border-radius: 8px; 
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+            }}
+            .form-group {{ 
+                margin-bottom: 20px; 
+            }}
+            label {{ 
+                display: block; 
+                margin-bottom: 5px; 
+                font-weight: bold; 
+                color: #333; 
+            }}
+            input[type="password"], input[type="email"] {{ 
+                width: 100%; 
+                padding: 12px; 
+                border: 1px solid #ddd; 
+                border-radius: 4px; 
+                font-size: 16px; 
+                box-sizing: border-box;
+            }}
+            button {{ 
+                background-color: #FF9800; 
+                color: white; 
+                padding: 12px 24px; 
+                border: none; 
+                border-radius: 4px; 
+                font-size: 16px; 
+                cursor: pointer; 
+                width: 100%; 
+            }}
+            button:hover {{ 
+                background-color: #F57C00; 
+            }}
+            .header {{ 
+                color: #FF9800; 
+                text-align: center; 
+                margin-bottom: 20px; 
+            }}
+            .info {{ 
+                color: #666; 
+                margin-bottom: 20px; 
+            }}
+            .error {{ 
+                color: #d32f2f; 
+                margin-bottom: 10px; 
+                display: none; 
+            }}
+            .success {{ 
+                color: #4CAF50; 
+                margin-bottom: 10px; 
+                display: none; 
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h2 class="header">🔐 Reset Your Password</h2>
+            <p class="info">Enter your new password for: <strong>{user.email}</strong></p>
+            
+            <div id="error-message" class="error"></div>
+            <div id="success-message" class="success"></div>
+            
+            <form id="resetForm">
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" value="{user.email}" readonly>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">New Password:</label>
+                    <input type="password" id="password" name="password" required 
+                           minlength="8" placeholder="Enter your new password">
+                </div>
+                
+                <div class="form-group">
+                    <label for="confirmPassword">Confirm Password:</label>
+                    <input type="password" id="confirmPassword" name="confirmPassword" required 
+                           minlength="8" placeholder="Confirm your new password">
+                </div>
+                
+                <input type="hidden" id="token" name="token" value="{token}">
+                
+                <button type="submit">Reset Password</button>
+            </form>
+        </div>
+        
+        <script>
+            document.getElementById('resetForm').addEventListener('submit', async function(e) {{
+                e.preventDefault();
+                
+                const password = document.getElementById('password').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+                const email = document.getElementById('email').value;
+                const token = document.getElementById('token').value;
+                
+                const errorDiv = document.getElementById('error-message');
+                const successDiv = document.getElementById('success-message');
+                
+                // Clear previous messages
+                errorDiv.style.display = 'none';
+                successDiv.style.display = 'none';
+                
+                // Validate passwords match
+                if (password !== confirmPassword) {{
+                    errorDiv.textContent = 'Passwords do not match.';
+                    errorDiv.style.display = 'block';
+                    return;
+                }}
+                
+                // Validate password strength
+                if (password.length < 8) {{
+                    errorDiv.textContent = 'Password must be at least 8 characters long.';
+                    errorDiv.style.display = 'block';
+                    return;
+                }}
+                
+                try {{
+                    const response = await fetch('/api/accounts/reset-password/complete/', {{
+                        method: 'POST',
+                        headers: {{
+                            'Content-Type': 'application/json',
+                        }},
+                        body: JSON.stringify({{
+                            email: email,
+                            password: password,
+                            token: token
+                        }})
+                    }});
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok) {{
+                        successDiv.textContent = result.message || 'Password reset successfully!';
+                        successDiv.style.display = 'block';
+                        
+                        // Disable form after success
+                        document.getElementById('resetForm').style.display = 'none';
+                        
+                        // Show login link
+                        const loginLink = document.createElement('p');
+                        loginLink.innerHTML = '<a href="/api/accounts/login/" style="color: #FF9800;">You can now login with your new password</a>';
+                        successDiv.appendChild(loginLink);
+                    }} else {{
+                        errorDiv.textContent = result.detail || 'An error occurred. Please try again.';
+                        errorDiv.style.display = 'block';
+                    }}
+                }} catch (error) {{
+                    errorDiv.textContent = 'Network error. Please try again.';
+                    errorDiv.style.display = 'block';
+                }}
+            }});
+        </script>
+    </body>
+    </html>
+    """
+    
+    return HTMLResponse(content=form_html)

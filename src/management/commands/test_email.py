@@ -59,11 +59,25 @@ async def test_email_direct() -> None:
     
     try:
         print(f"📬 Sending test activation email to {test_email}...")
-        
         activation_link = "https://fast-furious.work.gd/api/accounts/activate?token=test-token-123"
         await email_sender.send_activation_email(test_email, activation_link)
+        print(f"✅ Activation email sent successfully!")
         
-        print(f"✅ Test email sent successfully to {test_email}!")
+        print(f"📬 Sending test activation complete email to {test_email}...")
+        login_link = "https://fast-furious.work.gd/api/accounts/login/"
+        await email_sender.send_activation_complete_email(test_email, login_link)
+        print(f"✅ Activation complete email sent successfully!")
+        
+        print(f"📬 Sending test password reset email to {test_email}...")
+        reset_link = "https://fast-furious.work.gd/api/accounts/password-reset/confirm?token=test-reset-456"
+        await email_sender.send_password_reset_email(test_email, reset_link)
+        print(f"✅ Password reset email sent successfully!")
+        
+        print(f"📬 Sending test password reset complete email to {test_email}...")
+        await email_sender.send_password_reset_complete_email(test_email, login_link)
+        print(f"✅ Password reset complete email sent successfully!")
+        
+        print(f"\n🎉 All 4 email types sent successfully to {test_email}!")
         print("📝 Check your inbox (including spam folder)")
         
     except Exception as e:

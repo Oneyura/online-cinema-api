@@ -247,6 +247,43 @@ def send_password_reset_email(user_id: int, reset_token: str) -> str:
     result = run_async(_send_password_reset_email())
     return result
 
+
+@celery.task
+def send_password_reset_complete_email(user_id: int) -> str:
+    """
+    Send password reset completion email to user.
+    Works with both MailHog (development) and SendGrid (production).
+    """
+
+    async def _send_password_reset_complete_email():
+        async with AsyncSessionLocal() as session:
+            from sqlalchemy import select
+
+            # Get user data
+            stmt = select(UserModel).where(UserModel.id == user_id)
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+
+            if not user:
+                return f"User {user_id} not found"
+
+            # Get environment-specific EmailSender
+            email_sender = get_email_sender()
+
+            # Send password reset complete email
+            login_link = "https://fast-furious.work.gd/api/accounts/login/"
+            await email_sender.send_password_reset_complete_email(user.email, login_link)
+
+            # Log for debugging
+            environment = os.getenv("ENVIRONMENT", "developing")
+            print(f"Password reset complete email sent to {user.email} via {environment} environment")
+
+            return f"Password reset complete email sent to {user.email}"
+
+    result = run_async(_send_password_reset_complete_email())
+    return result
+
+
 @celery.task
 def send_email_notification(user_id: int, subject: str, template_name: str) -> str:
     """
