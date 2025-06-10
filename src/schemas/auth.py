@@ -1,4 +1,7 @@
 from pydantic import BaseModel, EmailStr, field_validator, model_validator
+from typing import Optional
+
+from pydantic import BaseModel, EmailStr, field_validator
 
 from src.database.validators.accounts import validate_password_strength
 from src.database.validators import accounts as accounts_validators

@@ -76,8 +76,9 @@ def get_email_sender(
     return EmailSender(
         hostname=settings.EMAIL_HOST,
         port=settings.EMAIL_PORT,
-        email=settings.EMAIL_HOST_USER,
+        username=settings.EMAIL_HOST_USER,
         password=settings.EMAIL_HOST_PASSWORD,
+        sender_email=settings.EMAIL_FROM,
         use_tls=settings.EMAIL_USE_TLS,
         template_dir="src/templates/email",
         activation_email_template_name="activation.html",
@@ -140,7 +141,13 @@ async def get_current_user(
     except Exception:
         raise credentials_exception
 
-    result = await db.execute(select(UserModel).filter(UserModel.id == user_id))
+    from sqlalchemy.orm import joinedload
+
+    result = await db.execute(
+        select(UserModel)
+        .options(joinedload(UserModel.group))
+        .filter(UserModel.id == user_id)
+    )
     user = result.scalars().first()
 
     if user is None:
@@ -157,7 +164,9 @@ async def get_current_user(
 
 
 async def get_current_moderator(current_user: UserModel = Depends(get_current_user)) -> UserModel:
-    if current_user.group != "moderator":
+    from src.database.models.accounts import UserGroupEnum
+    
+    if current_user.group.name not in [UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Operation forbidden. Requires moderator role."
         )

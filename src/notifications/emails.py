@@ -15,8 +15,9 @@ class EmailSender(EmailSenderInterface):
         self,
         hostname: str,
         port: int,
-        email: str,
+        username: str,
         password: str,
+        sender_email: str,
         use_tls: bool,
         template_dir: str,
         activation_email_template_name: str,
@@ -26,8 +27,9 @@ class EmailSender(EmailSenderInterface):
     ):
         self._hostname = hostname
         self._port = port
-        self._email = email
+        self._username = username  # For SMTP auth (e.g. "apikey")
         self._password = password
+        self._sender_email = sender_email  # For From header (e.g. "noreply@fast-furious.work.gd")
         self._use_tls = use_tls
         self._activation_email_template_name = activation_email_template_name
         self._activation_complete_email_template_name = activation_complete_email_template_name
@@ -49,25 +51,52 @@ class EmailSender(EmailSenderInterface):
             BaseEmailError: If sending the email fails.
         """
         message = MIMEMultipart()
-        message["From"] = self._email
+        message["From"] = self._sender_email  # Use sender_email instead of username
         message["To"] = recipient
         message["Subject"] = subject
         message.attach(MIMEText(html_content, "html"))
 
         try:
-            # For MailHog (development/testing), we don't need authentication
-            smtp = aiosmtplib.SMTP(hostname=self._hostname, port=self._port)
-            await smtp.connect()
+            # Configure SMTP connection based on service
+            if self._hostname == "mailhog":
+                # MailHog (development) - no encryption, no auth
+                smtp = aiosmtplib.SMTP(hostname=self._hostname, port=self._port)
+                await smtp.connect()
+                
+            elif self._hostname == "smtp.sendgrid.net":
+                # SendGrid specific configuration
+                if self._port == 587:
+                    # Use start_tls=True for port 587 (avoids double TLS)
+                    smtp = aiosmtplib.SMTP(
+                        hostname=self._hostname, 
+                        port=self._port,
+                        start_tls=True  # This handles STARTTLS automatically
+                    )
+                    await smtp.connect()
+                elif self._port == 465:
+                    # Use SSL/TLS for port 465
+                    smtp = aiosmtplib.SMTP(hostname=self._hostname, port=self._port, use_tls=True)
+                    await smtp.connect()
+                else:
+                    # Fallback for other ports
+                    smtp = aiosmtplib.SMTP(hostname=self._hostname, port=self._port)
+                    await smtp.connect()
+                    if self._use_tls:
+                        await smtp.starttls()
+                        
+            else:
+                # Generic SMTP configuration
+                smtp = aiosmtplib.SMTP(hostname=self._hostname, port=self._port)
+                await smtp.connect()
+                
+                if self._use_tls:
+                    await smtp.starttls()
 
-            # Only use TLS and login if configured
-            if self._use_tls and self._hostname != "mailhog":
-                await smtp.starttls()
+            # Login with credentials if provided and not MailHog
+            if self._username and self._password and self._hostname != "mailhog":
+                await smtp.login(self._username, self._password)
 
-            # Only login if credentials are provided and not using MailHog
-            if self._email and self._password and self._hostname != "mailhog":
-                await smtp.login(self._email, self._password)
-
-            await smtp.sendmail(self._email, [recipient], message.as_string())
+            await smtp.sendmail(self._sender_email, [recipient], message.as_string())
             await smtp.quit()
 
             logging.info(f"Email sent successfully to {recipient}")

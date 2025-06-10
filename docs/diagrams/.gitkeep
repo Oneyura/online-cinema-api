@@ -1,0 +1,16 @@
+# Diagrams folder for Online Cinema API
+
+This folder contains project diagrams and visualizations.
+
+Currently planned:
+- `architecture.png` - Main project architecture diagram showing all system components and their interactions
+
+This single comprehensive diagram will illustrate:
+- Client layer (Web, Mobile, API clients)
+- Load balancer (Nginx)
+- Application layer (FastAPI, Celery)
+- Data layer (PostgreSQL, Redis)
+- External services (Stripe, SendGrid, MinIO)
+- Monitoring tools (Flower)
+
+Add your project diagrams here. 

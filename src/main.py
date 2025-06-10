@@ -5,6 +5,7 @@ from src.routes.accounts import accounts_router
 from src.routes.cart import router as cart_router
 from src.routes.order import router as order_router
 from src.routes.payments import router as payments_router
+from src.routes.movies import router as movie_router
 
 app = FastAPI(
     title="Online Cinema API",
@@ -30,4 +31,6 @@ app.add_middleware(
 app.include_router(cart_router, prefix="/api")
 app.include_router(order_router, prefix="/api", tags=["Orders"])
 app.include_router(payments_router, prefix="/api", tags=["Payments"])
-app.include_router(accounts_router, prefix="/api/accounts", tags=["Authentication"])  #
+app.include_router(accounts_router, prefix="/api/accounts", tags=["Authentication"])
+app.include_router(movie_router, prefix="/api")
+
