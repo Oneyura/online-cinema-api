@@ -602,3 +602,81 @@ async def logout_user(
     )
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@accounts_router.get(
+    "/activate",
+    response_model=MessageResponseSchema,
+    summary="Activate User Account via Email Link",
+    description="Activate a user's account using the activation token from email link.",
+    status_code=status.HTTP_200_OK,
+    responses={
+        400: {
+            "description": "Bad Request - The activation token is invalid or expired, "
+            "or the user account is already active.",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "invalid_token": {
+                            "summary": "Invalid Token",
+                            "value": {"detail": "Invalid or expired activation token."},
+                        },
+                        "already_active": {
+                            "summary": "Account Already Active",
+                            "value": {"detail": "User account is already active."},
+                        },
+                    }
+                }
+            },
+        },
+    },
+)
+async def activate_account_via_link(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponseSchema:
+    """
+    Endpoint to activate a user's account via email link.
+
+    This endpoint takes only the token from query parameters and activates the account.
+    Designed to work with email activation links.
+
+    Args:
+        token (str): The activation token from the email link.
+        db (AsyncSession): The asynchronous database session.
+
+    Returns:
+        MessageResponseSchema: A response message confirming successful activation.
+
+    Raises:
+        HTTPException:
+            - 400 Bad Request if the activation token is invalid or expired.
+            - 400 Bad Request if the user account is already active.
+    """
+    stmt = (
+        select(ActivationTokenModel)
+        .options(joinedload(ActivationTokenModel.user))
+        .where(ActivationTokenModel.token == token)
+    )
+    result = await db.execute(stmt)
+    token_record = result.scalars().first()
+
+    now_utc = datetime.now(timezone.utc)
+    if not token_record or cast(datetime, token_record.expires_at).replace(tzinfo=timezone.utc) < now_utc:
+        if token_record:
+            await db.delete(token_record)
+            await db.commit()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired activation token.")
+
+    user = token_record.user
+    if user.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User account is already active.")
+
+    user.is_active = True
+    await db.delete(token_record)
+    await db.commit()
+
+    # Send activation complete email
+    send_activation_complete_email.delay(user_id=user.id)
+
+    return MessageResponseSchema(message="User account activated successfully.")
