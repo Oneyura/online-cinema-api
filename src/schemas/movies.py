@@ -147,7 +147,7 @@ class MovieResponseForDirector(BaseModel):
     price: Decimal
     certification: Optional['CertificationResponse'] = None
     genres: List['GenreResponse'] = []
-    stars: List['ActorResponse'] = []
+    actors: List['ActorResponse'] = []
 
     class Config:
         from_attributes = True

@@ -40,8 +40,8 @@ from src.schemas.movies import (
     CertificationResponse,
     GenreCreate,
     ActorCreate,
-    DirectorCreate,  # Додано для CRUD операцій
-    CertificationCreate, CommentResponseNested, DirectorUpdate,  # Додано для CRUD операцій
+    DirectorCreate,
+    CertificationCreate, CommentResponseNested, DirectorUpdate,
 )
 from src.schemas.movies import (
     CommentCreate,
@@ -53,7 +53,7 @@ from src.schemas.movies import (
     FavoriteMovieCreate,
     FavoriteMovieResponse
 )
-from src.config.dependencies import get_current_user, get_current_moderator  # Auth dependencies
+from src.config.dependencies import get_current_user, get_current_moderator
 
 router = APIRouter(prefix="/movies", tags=["Movies"])
 
@@ -244,7 +244,7 @@ async def like_dislike_movie(
 @router.post("/{movie_id}/comments", response_model=CommentResponse)
 async def write_comment(
         movie_id: int,
-        comment: CommentCreate, # Ця схема тепер має parent_comment_id
+        comment: CommentCreate,
         current_user: UserModel = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ) -> CommentResponse:
@@ -531,10 +531,10 @@ async def create_movie(
             raise HTTPException(status_code=400, detail="One or more director IDs not found")
         new_movie.directors.extend(found_directors)
 
-    if movie.star_ids:
-        actors = await db.execute(select(ActorModel).filter(ActorModel.id.in_(movie.star_ids)))
+    if movie.actor_ids:
+        actors = await db.execute(select(ActorModel).filter(ActorModel.id.in_(movie.actor_ids)))
         found_actors = actors.scalars().all()
-        if len(found_actors) != len(movie.star_ids):
+        if len(found_actors) != len(movie.actor_ids):
             raise HTTPException(status_code=400, detail="One or more actor IDs not found")
         new_movie.actors.extend(found_actors)
 
@@ -568,7 +568,7 @@ async def update_movie(
     update_data = movie_update.model_dump(exclude_unset=True)
 
     for key, value in update_data.items():
-        if key not in ["genre_ids", "director_ids", "star_ids", "certification_id"]:
+        if key not in ["genre_ids", "director_ids", "actor_ids", "certification_id"]:
             setattr(movie, key, value)
 
     if "certification_id" in update_data and update_data["certification_id"] is not None:
@@ -591,10 +591,10 @@ async def update_movie(
             raise HTTPException(status_code=400, detail="One or more director IDs not found")
         movie.directors = found_directors
 
-    if "star_ids" in update_data and update_data["star_ids"] is not None:
-        actors = await db.execute(select(ActorModel).filter(ActorModel.id.in_(update_data["star_ids"])))
+    if "actor_ids" in update_data and update_data["actor_ids"] is not None:
+        actors = await db.execute(select(ActorModel).filter(ActorModel.id.in_(update_data["actor_ids"])))
         found_actors = actors.scalars().all()
-        if len(found_actors) != len(update_data["star_ids"]):
+        if len(found_actors) != len(update_data["actor_ids"]):
             raise HTTPException(status_code=400, detail="One or more actor IDs not found")
         movie.actors = found_actors
 
