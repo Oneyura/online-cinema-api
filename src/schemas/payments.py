@@ -1,4 +1,4 @@
-#todo: PaymentCreate, PaymentRead, PaymentItemRead
+# todo: PaymentCreate, PaymentRead, PaymentItemRead
 from datetime import datetime
 from typing import List, Optional
 
@@ -29,18 +29,17 @@ class PaymentBaseSchema(BaseModel):
     external_payment_id: str
 
 
-
 class PaymentDetailResponseSchema(PaymentBaseSchema):
     user_name: str
     payment_items: List[PaymentItemResponseSchema]
 
     @field_serializer("user_name", mode="plain")
     def get_user_name(self, obj):
-        return obj.user.name if obj.user else None #TODO add relationship field to user_model
+        return obj.user.name if obj.user else None  # TODO add relationship field to user_model
 
 
 class PaymentListResponseSchema(BaseModel):
-    payments: List[PaymentBaseSchema]
+    payments: List[PaymentDetailResponseSchema]
     prev_page: Optional[str]
     next_page: Optional[str]
     total_pages: int
@@ -50,7 +49,7 @@ class PaymentListResponseSchema(BaseModel):
         "from_attributes": True,
         "json_schema_extra": {
             "examples": [
-                #todo create examples payment
+                # todo create examples payment
             ]
-        }
+        },
     }

@@ -65,7 +65,7 @@ class UserModel(Base):
         "UserProfileModel", back_populates="user", cascade="all, delete-orphan"
     )
 
-    payments: Mapped[List["Payments"]] = relationship("Payments", back_populates="user")
+    payments: Mapped[List["PaymentsModel"]] = relationship("PaymentsModel", back_populates="user")
 
     comments: Mapped[List["CommentModel"]] = relationship(
         "CommentModel", back_populates="user", cascade="all, delete-orphan"

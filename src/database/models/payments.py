@@ -7,24 +7,8 @@ from typing import List
 from sqlalchemy.sql.sqltypes import Numeric
 
 
-from sqlalchemy import (
-    ForeignKey,
-    String,
-    Boolean,
-    DateTime,
-    Enum,
-    Integer,
-    func,
-    Text,
-    Date,
-    UniqueConstraint
-)
-from sqlalchemy.orm import (
-    Mapped,
-    mapped_column,
-    relationship,
-    validates
-)
+from sqlalchemy import ForeignKey, String, Boolean, DateTime, Enum, Integer, func, Text, Date, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from src.database.models.base import Base
 
@@ -35,8 +19,8 @@ class PaymentStatus(enum.Enum):
     REFUNDED = enum.auto()
 
 
-class Payments(Base):
-    __tablename__ = "payments"
+class PaymentsModel(Base):
+    __tablename__ = "PaymentsModel"
 
     id: Mapped[int] = mapped_column(
         Integer,
@@ -62,17 +46,27 @@ class Payments(Base):
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     external_payment_id: Mapped[str] = mapped_column(String, nullable=True)
     order: Mapped["Order"] = relationship("Order", back_populates="payments")
-    payment_items: Mapped[List["PaymentsItem"]] = relationship("PaymentsItem", back_populates="payment", cascade="all, delete-orphan")
+    payment_items: Mapped[List["PaymentsItemModel"]] = relationship("PaymentsItemModel", back_populates="payment", cascade="all, delete-orphan")
     user: Mapped["UserModel"] = relationship("UserModel", back_populates="payments")
 
+    @classmethod
+    def default_order_by(cls):
+        return [cls.id.desc()]
 
-class PaymentsItem(Base):
-    __tablename__ = "paymentsitem"
+    def __repr__(self):
+        return f"<Payment(amount='{self.amount}', date='{self.created_at}', status={self.status})>"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
+class PaymentsItemModel(Base):
+    __tablename__ = "PaymentsItemModel"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True
+    )
     payment_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("payments.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("PaymentsModel.id", ondelete="CASCADE"), nullable=False
     )
     order_item_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("order_items.id", ondelete="CASCADE"), nullable=False
@@ -81,5 +75,5 @@ class PaymentsItem(Base):
         Numeric(10, 2), nullable=False
     )
 
-    payment: Mapped["Payments"] = relationship("Payments", back_populates="payment_items")
+    payment: Mapped["PaymentsModel"] = relationship("PaymentsModel", back_populates="payment_items")
     order_item: Mapped["OrderItem"] = relationship("OrderItem", back_populates="payments_items")

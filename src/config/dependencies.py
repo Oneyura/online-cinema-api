@@ -6,13 +6,13 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config.settings import BaseAppSettings, ProductionSettings, Settings, TestSettings
 from src.database.models import UserModel
-from src.config.settings import BaseAppSettings, Settings, TestSettings, ProductionSettings
-from src.security.interfaces import JWTAuthManagerInterface
-from src.security.token_manager import JWTAuthManager
-from src.exceptions.security import TokenExpiredError, InvalidTokenError
+from src.exceptions.security import InvalidTokenError, TokenExpiredError
 from src.notifications.emails import EmailSender
 from src.notifications.interfaces import EmailSenderInterface
+from src.security.interfaces import JWTAuthManagerInterface
+from src.security.token_manager import JWTAuthManager
 from src.storages.interfaces import S3StorageInterface
 from src.storages.s3 import S3StorageClient
 
@@ -31,6 +31,7 @@ def get_settings() -> BaseAppSettings:
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     from src.database.session import AsyncSessionLocal
+
     async with AsyncSessionLocal() as session:
         yield session
 
@@ -64,7 +65,7 @@ def get_jwt_auth_manager(settings: BaseAppSettings = Depends(get_settings)) -> J
     return JWTAuthManager(
         secret_key_access=settings.SECRET_KEY_ACCESS,
         secret_key_refresh=settings.SECRET_KEY_REFRESH,
-        algorithm=settings.JWT_SIGNING_ALGORITHM
+        algorithm=settings.JWT_SIGNING_ALGORITHM,
     )
 
 
@@ -75,8 +76,9 @@ def get_email_sender(
     return EmailSender(
         hostname=settings.EMAIL_HOST,
         port=settings.EMAIL_PORT,
-        email=settings.EMAIL_HOST_USER,
+        username=settings.EMAIL_HOST_USER,
         password=settings.EMAIL_HOST_PASSWORD,
+        sender_email=settings.EMAIL_FROM,
         use_tls=settings.EMAIL_USE_TLS,
         template_dir="src/templates/email",
         activation_email_template_name="activation.html",
@@ -101,7 +103,7 @@ def get_minio_client(
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
-    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager)
+    jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
 ) -> UserModel:
     """
     Get current authenticated user from JWT token.
@@ -158,7 +160,6 @@ async def get_current_user(
 async def get_current_moderator(current_user: UserModel = Depends(get_current_user)) -> UserModel:
     if current_user.group != "moderator" or current_user.group != "admin":
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Operation forbidden. Requires moderator role."
+            status_code=status.HTTP_403_FORBIDDEN, detail="Operation forbidden. Requires moderator role."
         )
     return current_user

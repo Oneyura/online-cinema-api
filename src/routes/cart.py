@@ -3,9 +3,9 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.session import get_async_session
-from src.database.models.accounts import UserModel
 from src.config.dependencies import get_current_user
+from src.database.models.accounts import UserModel
+from src.database.session import get_async_session
 from src.exceptions.cart import (
     BaseCartError,
     CartNotFoundError,
@@ -24,7 +24,7 @@ from src.schemas.cart import (
 )
 from src.services.cart_service import CartService
 
-router = APIRouter(prefix="/cart", tags=["cart"])
+router = APIRouter(prefix="/cart", tags=["Cart"])
 
 
 # Authentication is now handled by get_current_user dependency from src.config.dependencies
@@ -43,15 +43,15 @@ async def get_guest_cart_info():
             "View detailed movie information (title, price, genre, release year)",
             "See which movies you've already purchased",
             "Pay for all movies in your cart at once",
-            "Access your purchase history"
+            "Access your purchase history",
         ],
         "action_required": "Please sign up or log in to use cart functionality",
         "auth_endpoints": {
             "sign_up": "/api/accounts/register/",
             "log_in": "/api/accounts/login/",
             "resend_activation": "/api/accounts/resend-activation/",
-            "password_reset": "/api/accounts/password-reset/request/"
-        }
+            "password_reset": "/api/accounts/password-reset/request/",
+        },
     }
 
 
@@ -68,16 +68,17 @@ async def get_cart(
             # Create empty cart if doesn't exist
             empty_cart = await CartService.get_or_create_cart(current_user.id, session)
             await session.commit()
-            
+
             from decimal import Decimal
+
             cart = CartResponseSchema(
                 id=empty_cart.id,
                 user_id=empty_cart.user_id,
                 created_at=empty_cart.created_at,
                 cart_items=[],
-                total_price=Decimal('0.00'),
+                total_price=Decimal("0.00"),
                 total_items=0,
-                available_items=0
+                available_items=0,
             )
 
         return cart
@@ -98,15 +99,16 @@ async def get_cart_summary(
         if not cart_details:
             empty_cart = await CartService.get_or_create_cart(current_user.id, session)
             await session.commit()
-            
+
             from decimal import Decimal
+
             return CartSummarySchema(
                 id=empty_cart.id,
                 user_id=empty_cart.user_id,
                 created_at=empty_cart.created_at,
                 items_count=0,
                 available_items_count=0,
-                total_price=Decimal('0.00')
+                total_price=Decimal("0.00"),
             )
 
         return CartSummarySchema(
@@ -115,7 +117,7 @@ async def get_cart_summary(
             created_at=cart_details.created_at,
             items_count=cart_details.total_items,
             available_items_count=cart_details.available_items,
-            total_price=cart_details.total_price
+            total_price=cart_details.total_price,
         )
 
     except BaseCartError as e:
@@ -210,15 +212,16 @@ async def get_users_with_movie_in_cart(
     """
     # Check if user is admin/moderator
     from sqlalchemy import select
-    from src.database.models.accounts import UserGroupModel, UserGroupEnum
-    
+
+    from src.database.models.accounts import UserGroupEnum, UserGroupModel
+
     stmt = select(UserGroupModel).join(UserModel).where(UserModel.id == current_user.id)
     result = await session.execute(stmt)
     group = result.scalars().first()
-    
+
     if not group or group.name not in [UserGroupEnum.ADMIN, UserGroupEnum.MODERATOR]:
         raise HTTPException(status_code=403, detail="Admin or Moderator access required")
-    
+
     try:
         carts = await CartService.get_all_user_carts_with_movie(movie_id, session)
         return carts

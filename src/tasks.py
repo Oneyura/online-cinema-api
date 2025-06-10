@@ -1,9 +1,14 @@
+import asyncio
+import os
 from datetime import datetime, timezone
 
 from celery import Celery  # type: ignore
+from celery.schedules import crontab
 
-from src.database.models.accounts import ActivationTokenModel
+from src.config.dependencies import get_settings
+from src.database.models.accounts import ActivationTokenModel, UserModel
 from src.database.session import AsyncSessionLocal
+from src.notifications.emails import EmailSender
 
 celery = Celery(
     "tasks",
@@ -11,82 +16,300 @@ celery = Celery(
     backend="redis://redis:6379/0",
 )
 
+# Celery beat schedule configuration
+celery.conf.beat_schedule = {
+    "delete-expired-activation-tokens": {
+        "task": "src.tasks.delete_expired_activation_tokens",
+        "schedule": crontab(hour=2, minute=0),  # Щоденно о 2:00 ночі
+    },
+    "delete-expired-password-reset-tokens": {
+        "task": "src.tasks.delete_expired_password_reset_tokens",
+        "schedule": crontab(hour=2, minute=30),  # Щоденно о 2:30 ночі
+    },
+    "cleanup-old-cart-items": {
+        "task": "src.tasks.cleanup_old_cart_items",
+        "schedule": crontab(hour=3, minute=0),  # Щоденно о 3:00 ночі
+    },
+}
+
+celery.conf.timezone = "UTC"
+
+
+def run_async(coro):
+    """Helper function to run async code in sync context"""
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    return loop.run_until_complete(coro)
+
+
+def get_email_sender():
+    """
+    Get EmailSender instance with environment-specific configuration.
+    This will automatically work with SendGrid on production and MailHog on development.
+    """
+    settings = get_settings()
+
+    return EmailSender(
+        hostname=settings.EMAIL_HOST,
+        port=settings.EMAIL_PORT,
+        username=settings.EMAIL_HOST_USER,
+        password=settings.EMAIL_HOST_PASSWORD,
+        sender_email=settings.EMAIL_FROM,
+        use_tls=settings.EMAIL_USE_TLS,
+        template_dir="src/templates/email",
+        activation_email_template_name="activation.html",
+        activation_complete_email_template_name="activation_complete.html",
+        password_email_template_name="password_reset.html",
+        password_complete_email_template_name="password_reset_complete.html",
+    )
+
+
 @celery.task
-async def delete_expired_activation_tokens() -> str:
+def delete_expired_activation_tokens() -> str:
     """
     Periodic task to delete expired activation tokens.
     """
-    async with AsyncSessionLocal() as session:
-        now = datetime.now(timezone.utc)
-        result = await session.execute(
-            ActivationTokenModel.__table__.delete().where(ActivationTokenModel.expires_at < now)
-        )
-        await session.commit()
-        deleted_count = result.rowcount or 0
+
+    async def _delete_expired_tokens():
+        async with AsyncSessionLocal() as session:
+            now = datetime.now(timezone.utc)
+
+            # Use SQLAlchemy delete statement
+            from sqlalchemy import delete
+
+            stmt = delete(ActivationTokenModel).where(ActivationTokenModel.expires_at < now)
+            result = await session.execute(stmt)
+            await session.commit()
+            return result.rowcount or 0
+
+    deleted_count = run_async(_delete_expired_tokens())
     return f"Deleted {deleted_count} expired activation tokens"
 
 
 @celery.task
-def check_expired_sessions() -> str:
+def delete_expired_password_reset_tokens() -> str:
     """
-    Checks and deletes expired user sessions.
+    Periodic task to delete expired password reset tokens.
     """
-    # TODO: Implement session cleanup logic
-    return "Sessions checked and cleaned up"
+
+    async def _delete_expired_tokens():
+        async with AsyncSessionLocal() as session:
+            now = datetime.now(timezone.utc)
+
+            # Import here to avoid circular imports
+            from sqlalchemy import delete
+
+            from src.database.models.accounts import PasswordResetTokenModel
+
+            stmt = delete(PasswordResetTokenModel).where(PasswordResetTokenModel.expires_at < now)
+            result = await session.execute(stmt)
+            await session.commit()
+            return result.rowcount or 0
+
+    deleted_count = run_async(_delete_expired_tokens())
+    return f"Deleted {deleted_count} expired password reset tokens"
 
 
 @celery.task
-def send_email_notification(user_id: int, subject: str, message: str) -> str:
+def cleanup_old_cart_items() -> str:
     """
-    Отправка email уведомления пользователю.
+    Clean up cart items that are older than 30 days for inactive users.
+    This helps keep the database clean.
     """
-    # Здесь нужно реализовать вызов EmailSender (через DI или импорт)
-    # Пример заглушки:
-    print(f"Sending email to user {user_id}: {subject} - {message}")
-    # TODO: Реализовать реальную отправку через EmailSender
-    return f"Email sent to user {user_id}"
+
+    async def _cleanup_old_cart_items():
+        async with AsyncSessionLocal() as session:
+            from datetime import timedelta
+
+            from sqlalchemy import delete
+
+            from src.database.models.cart import CartItemModel
+
+            # Delete cart items older than 30 days
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
+
+            stmt = delete(CartItemModel).where(CartItemModel.added_at < cutoff_date)
+            result = await session.execute(stmt)
+            await session.commit()
+            return result.rowcount or 0
+
+    deleted_count = run_async(_cleanup_old_cart_items())
+    return f"Cleaned up {deleted_count} old cart items"
 
 
 @celery.task
-def cleanup_old_files() -> str:
+def send_activation_email(user_id: int, activation_token: str) -> str:
     """
-    Clean up old files from storage.
+    Send activation email to user using EmailSender.
+    Works with both MailHog (development) and SendGrid (production).
     """
-    # TODO: Implement actual file cleanup logic
-    return "Old files cleaned up"
+
+    async def _send_activation_email():
+        async with AsyncSessionLocal() as session:
+            from sqlalchemy import select
+
+            # Get user data
+            stmt = select(UserModel).where(UserModel.id == user_id)
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+
+            if not user:
+                return f"User {user_id} not found"
+
+            # Get environment-specific EmailSender
+            email_sender = get_email_sender()
+
+            # Send activation email
+            activation_link = f"https://fast-furious.work.gd/api/accounts/activate?token={activation_token}"
+            await email_sender.send_activation_email(user.email, activation_link)
+
+            # Log for debugging
+            environment = os.getenv("ENVIRONMENT", "developing")
+            print(f"Activation email sent to {user.email} via {environment} environment")
+
+            return f"Activation email sent to {user.email}"
+
+    result = run_async(_send_activation_email())
+    return result
 
 
 @celery.task
-def process_video(video_id: int) -> str:
+def send_activation_complete_email(user_id: int) -> str:
     """
-    Process uploaded video.
+    Send activation completion email to user.
+    Works with both MailHog (development) and SendGrid (production).
     """
-    # TODO: Implement actual video processing logic
-    return f"Video {video_id} processed"
+
+    async def _send_activation_complete_email():
+        async with AsyncSessionLocal() as session:
+            from sqlalchemy import select
+
+            # Get user data
+            stmt = select(UserModel).where(UserModel.id == user_id)
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+
+            if not user:
+                return f"User {user_id} not found"
+
+            # Get environment-specific EmailSender
+            email_sender = get_email_sender()
+
+            # Send activation complete email
+            login_link = "https://fast-furious.work.gd/api/accounts/login/"
+            await email_sender.send_activation_complete_email(user.email, login_link)
+
+            # Log for debugging
+            environment = os.getenv("ENVIRONMENT", "developing")
+            print(f"Activation complete email sent to {user.email} via {environment} environment")
+
+            return f"Activation complete email sent to {user.email}"
+
+    result = run_async(_send_activation_complete_email())
+    return result
 
 
 @celery.task
-def generate_user_report(user_id: int, report_type: str) -> str:
+def send_password_reset_email(user_id: int, reset_token: str) -> str:
     """
-    Generate a report on user activity.
+    Send password reset email to user.
+    Works with both MailHog (development) and SendGrid (production).
     """
-    # TODO: Implement report generation logic
-    return f"Report generated for user {user_id}"
+
+    async def _send_password_reset_email():
+        async with AsyncSessionLocal() as session:
+            from sqlalchemy import select
+
+            # Get user data
+            stmt = select(UserModel).where(UserModel.id == user_id)
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+
+            if not user:
+                return f"User {user_id} not found"
+
+            # Get environment-specific EmailSender
+            email_sender = get_email_sender()
+
+            # Send password reset email
+            reset_link = f"https://fast-furious.work.gd/api/accounts/password-reset/confirm?token={reset_token}"
+            await email_sender.send_password_reset_email(user.email, reset_link)
+
+            # Log for debugging
+            environment = os.getenv("ENVIRONMENT", "developing")
+            print(f"Password reset email sent to {user.email} via {environment} environment")
+
+            return f"Password reset email sent to {user.email}"
+
+    result = run_async(_send_password_reset_email())
+    return result
 
 
 @celery.task
-def generate_thumbnails(video_id: int) -> str:
+def send_password_reset_complete_email(user_id: int) -> str:
     """
-    Generate thumbnails for video.
+    Send password reset completion email to user.
+    Works with both MailHog (development) and SendGrid (production).
     """
-    # TODO: Implement actual thumbnail generation logic
-    return f"Thumbnails generated for video {video_id}"
+
+    async def _send_password_reset_complete_email():
+        async with AsyncSessionLocal() as session:
+            from sqlalchemy import select
+
+            # Get user data
+            stmt = select(UserModel).where(UserModel.id == user_id)
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+
+            if not user:
+                return f"User {user_id} not found"
+
+            # Get environment-specific EmailSender
+            email_sender = get_email_sender()
+
+            # Send password reset complete email
+            login_link = "https://fast-furious.work.gd/api/accounts/login/"
+            await email_sender.send_password_reset_complete_email(user.email, login_link)
+
+            # Log for debugging
+            environment = os.getenv("ENVIRONMENT", "developing")
+            print(f"Password reset complete email sent to {user.email} via {environment} environment")
+
+            return f"Password reset complete email sent to {user.email}"
+
+    result = run_async(_send_password_reset_complete_email())
+    return result
 
 
 @celery.task
-def update_video_status(video_id: int, status: str) -> str:
+def send_email_notification(user_id: int, subject: str, template_name: str) -> str:
     """
-    Update video processing status.
+    Send a generic email using a given template and subject.
+    Used e.g. for payment success notifications.
     """
-    # TODO: Implement actual status update logic
-    return f"Status updated for video {video_id}"
+
+    async def _send_email():
+        async with AsyncSessionLocal() as session:
+            from sqlalchemy import select
+            stmt = select(UserModel).where(UserModel.id == int(user_id))
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+
+            if not user:
+                return f"User {user_id} not found"
+
+            email_sender = get_email_sender()
+            context = {"email": user.email}
+            await email_sender.send_custom_template_email(
+                email=user.email,
+                subject=subject,
+                template_name=template_name,
+                context=context
+            )
+
+            return f"Email '{subject}' sent to {user.email}"
+
+    return run_async(_send_email())
