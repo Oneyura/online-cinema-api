@@ -469,62 +469,79 @@ async def rate_movie(
 # --- Moderator Functionality (CRUD on Movies, Genres, Actors) ---
 
 # Create Movie
-@router.post("/", response_model=MovieResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=MovieCreateResponse, status_code=status.HTTP_201_CREATED)
 async def create_movie(
-        movie: MovieCreate,
+        movie_data: MovieCreate,
         db: AsyncSession = Depends(get_db),
-        moderator: UserModel = Depends(get_current_moderator)  # Requires moderator role
+        moderator: UserModel = Depends(get_current_moderator)
 ) -> MovieCreateResponse:
     """
     Create a new movie (Moderator only).
     """
-    # Check if certification_id exists
-    cert = await db.execute(select(CertificationModel).filter_by(id=movie.certification_id))
-    if not cert.scalars().first():
+    cert_result = await db.execute(select(CertificationModel).filter_by(id=movie_data.certification_id))
+    certification = cert_result.scalars().first()
+    if not certification:
         raise HTTPException(status_code=400, detail="Certification ID not found")
 
+    found_genres = []
+    if movie_data.genre_ids:
+        genres_result = await db.execute(select(GenreModel).filter(GenreModel.id.in_(movie_data.genre_ids)))
+        found_genres = genres_result.scalars().all()
+        if len(found_genres) != len(movie_data.genre_ids):
+            raise HTTPException(status_code=400, detail="One or more genre IDs not found")
+
+    found_directors = []
+    if movie_data.director_ids:
+        directors_result = await db.execute(select(DirectorModel).filter(DirectorModel.id.in_(movie_data.director_ids)))
+        found_directors = directors_result.scalars().all()
+        if len(found_directors) != len(movie_data.director_ids):
+            raise HTTPException(status_code=400, detail="One or more director IDs not found")
+
+    found_actors = []
+    if movie_data.actor_ids:
+        actors_result = await db.execute(select(ActorModel).filter(ActorModel.id.in_(movie_data.actor_ids)))
+        found_actors = actors_result.scalars().all()
+        if len(found_actors) != len(movie_data.actor_ids):
+            raise HTTPException(status_code=400, detail="One or more actor IDs not found")
+
+
     new_movie = MovieModel(
-        name=movie.name,
-        year=movie.year,
-        time=movie.time,
-        imdb=movie.imdb,
-        votes=movie.votes,
-        meta_score=movie.meta_score,
-        gross=movie.gross,
-        description=movie.description,
-        price=movie.price,
-        certification_id=movie.certification_id
+        name=movie_data.name,
+        year=movie_data.year,
+        time=movie_data.time,
+        imdb=movie_data.imdb,
+        votes=movie_data.votes,
+        meta_score=movie_data.meta_score,
+        gross=movie_data.gross,
+        description=movie_data.description,
+        price=movie_data.price,
+        certification=certification
     )
 
-    if movie.genre_ids:
-        genres = await db.execute(select(GenreModel).filter(GenreModel.id.in_(movie.genre_ids)))
-        found_genres = genres.scalars().all()
-        if len(found_genres) != len(movie.genre_ids):
-            raise HTTPException(status_code=400, detail="One or more genre IDs not found")
-        new_movie.genres.extend(found_genres)
-
-    if movie.director_ids:
-        directors = await db.execute(select(DirectorModel).filter(DirectorModel.id.in_(movie.director_ids)))
-        found_directors = directors.scalars().all()
-        if len(found_directors) != len(movie.director_ids):
-            raise HTTPException(status_code=400, detail="One or more director IDs not found")
-        new_movie.directors.extend(found_directors)
-
-    if movie.actor_ids:
-        actors = await db.execute(select(ActorModel).filter(ActorModel.id.in_(movie.actor_ids)))
-        found_actors = actors.scalars().all()
-        if len(found_actors) != len(movie.actor_ids):
-            raise HTTPException(status_code=400, detail="One or more actor IDs not found")
-        new_movie.actors.extend(found_actors)
+    new_movie.genres.extend(found_genres)
+    new_movie.directors.extend(found_directors)
+    new_movie.actors.extend(found_actors)
 
     try:
         db.add(new_movie)
         await db.commit()
         await db.refresh(new_movie)
-        await db.refresh(new_movie, attribute_names=['certification', 'genres', 'directors', 'actors'])
-        return new_movie
+
+        loaded_movie = await db.execute(
+            select(MovieModel)
+            .filter_by(id=new_movie.id)
+            .options(
+                selectinload(MovieModel.certification),
+                selectinload(MovieModel.directors),
+                selectinload(MovieModel.actors),
+                selectinload(MovieModel.genres)
+            )
+        )
+        return loaded_movie.scalars().first()
+
     except Exception as e:
         await db.rollback()
+        print(f"Error creating movie: {e}")
         raise HTTPException(status_code=400, detail=f"Could not create movie: {e}")
 
 
@@ -877,10 +894,14 @@ async def get_all_directors(
         selectinload(DirectorModel.movies).selectinload(MovieModel.genres),
         selectinload(DirectorModel.movies).selectinload(MovieModel.actors)
     )
+
     offset = (page - 1) * limit
     query = query.offset(offset).limit(limit)
+
     result = await db.execute(query)
+
     directors = result.scalars().unique().all()
+
     return directors
 
 
