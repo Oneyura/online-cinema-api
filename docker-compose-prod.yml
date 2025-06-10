@@ -1,4 +1,21 @@
 services:
+  # Migration init container
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: /commands/run_migration.sh
+    env_file:
+      - .env.prod
+    environment:
+      - PYTHONPATH=/usr/src/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - cinema_network
+    restart: "no"
+
   web:
     build:
       context: .
@@ -9,6 +26,7 @@ services:
     environment:
       - PYTHONPATH=/usr/src/app
     depends_on:
+      - migrate
       - postgres
       - redis
       - minio
