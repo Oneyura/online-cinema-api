@@ -64,10 +64,13 @@ class EmailSender(EmailSenderInterface):
             elif self._hostname == "smtp.sendgrid.net":
                 # SendGrid specific configuration
                 if self._port == 587:
-                    # Use STARTTLS for port 587
-                    smtp = aiosmtplib.SMTP(hostname=self._hostname, port=self._port)
+                    # Use start_tls=True for port 587 (avoids double TLS)
+                    smtp = aiosmtplib.SMTP(
+                        hostname=self._hostname, 
+                        port=self._port,
+                        start_tls=True  # This handles STARTTLS automatically
+                    )
                     await smtp.connect()
-                    await smtp.starttls()
                 elif self._port == 465:
                     # Use SSL/TLS for port 465
                     smtp = aiosmtplib.SMTP(hostname=self._hostname, port=self._port, use_tls=True)
