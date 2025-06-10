@@ -35,6 +35,7 @@ from src.schemas.auth import (
 )
 from src.security.interfaces import JWTAuthManagerInterface
 from src.services.auth_service import AuthService
+from src.tasks import send_activation_email, send_activation_complete_email, send_password_reset_email
 
 accounts_router = APIRouter()
 
@@ -109,6 +110,12 @@ async def register_user(
 
         await db.commit()
         await db.refresh(new_user)
+        
+        # Send activation email
+        send_activation_email.delay(
+            user_id=new_user.id,
+            activation_token=activation_token.token,
+        )
     except SQLAlchemyError as e:
         await db.rollback()
         raise HTTPException(
@@ -193,6 +200,9 @@ async def activate_account(
     await db.delete(token_record)
     await db.commit()
 
+    # Send activation complete email
+    send_activation_complete_email.delay(user_id=user.id)
+
     return MessageResponseSchema(message="User account activated successfully.")
 
 
@@ -235,6 +245,12 @@ async def request_password_reset_token(
     reset_token = PasswordResetTokenModel(user_id=cast(int, user.id))
     db.add(reset_token)
     await db.commit()
+
+    # Send password reset email
+    send_password_reset_email.delay(
+        user_id=user.id,
+        reset_token=reset_token.token,
+    )
 
     return MessageResponseSchema(message="If you are registered, you will receive an email with instructions.")
 

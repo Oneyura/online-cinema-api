@@ -1,4 +1,21 @@
 services:
+  # Migration init container
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: /commands/run_migration.sh
+    env_file:
+      - .env.prod
+    environment:
+      - PYTHONPATH=/usr/src/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - cinema_network
+    restart: "no"
+
   web:
     build:
       context: .
@@ -9,6 +26,7 @@ services:
     environment:
       - PYTHONPATH=/usr/src/app
     depends_on:
+      - migrate
       - postgres
       - redis
       - minio
@@ -83,12 +101,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: celery -A src.worker.celery flower --port=5555
+    command: celery -A src.worker.celery flower --port=5555 --url_prefix=flower
     restart: always
     env_file:
       - .env.prod
     environment:
       - PYTHONPATH=/usr/src/app
+      - FLOWER_URL_PREFIX=flower
     depends_on:
       - redis
       - celery_worker
@@ -101,6 +120,8 @@ services:
     command: server --console-address ":9001" /data
     env_file:
       - .env.prod
+    environment:
+      - MINIO_BROWSER_REDIRECT_URL=https://fast-furious.work.gd/minio
     volumes:
       - minio_data:/data
     networks:
