@@ -87,8 +87,10 @@ async def create_payment_in_db(
             payment_status = PaymentStatus.SUCCESSFUL
         case "unpaid":
             payment_status = PaymentStatus.CANCELED
+        case "pending":
+            payment_status = PaymentStatus.PENDING
         case _:
-            raise ValueError(f"Unknown payment status: {status}")
+            payment_status = PaymentStatus.PENDING  # Default to pending for unknown statuses
 
     payment = PaymentsModel(
         user_id=user_id,
@@ -100,12 +102,18 @@ async def create_payment_in_db(
     db.add(payment)
     await db.flush()
 
-    for item in order.items:
-        db.add(PaymentsItemModel(
-            payment_id=payment.id,
-            order_item_id=item.id,
-            price_at_payment=item.price_at_order
-        ))
+    # Only create payment items and mark order as completed for successful payments
+    if payment_status == PaymentStatus.SUCCESSFUL:
+        for item in order.items:
+            db.add(PaymentsItemModel(
+                payment_id=payment.id,
+                order_item_id=item.id,
+                price_at_payment=item.price_at_order
+            ))
+        
+        # Mark order as completed
+        order.status = OrderStatusEnum.COMPLETED
+    
     await db.commit()
 
 

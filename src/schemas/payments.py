@@ -2,18 +2,14 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, field_serializer, computed_field
 from pydantic_core.core_schema import json_schema
 
 
 class PaymentItemResponseSchema(BaseModel):
     id: int
     price_at_payment: float
-    order_items_movie_name: str
-
-    @field_serializer("order_items_movie_name", mode="plain")
-    def get_movie_name(self, obj):
-        return obj.order_item.movie.name if obj.order_item and obj.order_item.movie else None
+    order_item_id: int
 
     model_config = {
         "from_attributes": True,
@@ -26,30 +22,34 @@ class PaymentBaseSchema(BaseModel):
     created_at: datetime
     status: str
     amount: float
-    external_payment_id: str
+    external_payment_id: Optional[str] = None
+
+    model_config = {
+        "from_attributes": True,
+    }
 
 
 class PaymentDetailResponseSchema(PaymentBaseSchema):
-    user_name: str
-    payment_items: List[PaymentItemResponseSchema]
+    user_id: int
+    payment_items: List[PaymentItemResponseSchema] = []
 
-    @field_serializer("user_name", mode="plain")
-    def get_user_name(self, obj):
-        return obj.user.name if obj.user else None  # TODO add relationship field to user_model
+    model_config = {
+        "from_attributes": True,
+    }
 
 
 class PaymentListResponseSchema(BaseModel):
     payments: List[PaymentDetailResponseSchema]
-    prev_page: Optional[str]
-    next_page: Optional[str]
+    prev_page: Optional[str] = None
+    next_page: Optional[str] = None
     total_pages: int
     total_items: int
 
     model_config = {
         "from_attributes": True,
-        "json_schema_extra": {
-            "examples": [
-                # todo create examples payment
-            ]
-        },
     }
+
+
+class PaymentCreateSchema(BaseModel):
+    order_id: int
+    payment_method: str = "CARD"
