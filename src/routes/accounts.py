@@ -8,7 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from src.config.dependencies import BaseAppSettings, get_db, get_jwt_auth_manager, get_settings
+from src.config.dependencies import BaseAppSettings, get_db, get_jwt_auth_manager, get_settings, get_current_user
 from src.config.settings import settings
 from src.database.models.accounts import (
     ActivationTokenModel,
@@ -31,9 +31,10 @@ from src.schemas.auth import (
     UserLoginRequestSchema,
     UserLoginResponseSchema,
     UserRegistrationRequestSchema,
-    UserRegistrationResponseSchema,
+    UserRegistrationResponseSchema, PasswordChangeRequestSchema,
 )
 from src.security.interfaces import JWTAuthManagerInterface
+from src.security.passwords import hash_password
 from src.services.auth_service import AuthService
 from src.tasks import send_activation_email, send_activation_complete_email, send_password_reset_email, send_password_reset_complete_email
 
@@ -334,7 +335,7 @@ async def reset_password(
         user.password = data.password
         await db.run_sync(lambda s: s.delete(token_record))
         await db.commit()
-        
+
         # Send password reset complete email
         send_password_reset_complete_email.delay(user.id)
     except SQLAlchemyError:
@@ -640,7 +641,7 @@ async def activate_account_via_link(
 ) -> MessageResponseSchema:
     """
     Endpoint to activate a user's account via email link.
-    
+
     This is a GET endpoint that accepts the activation token as a query parameter,
     making it compatible with email links. It performs the same logic as the POST
     activate endpoint but is more user-friendly for email activation workflows.
@@ -679,16 +680,16 @@ async def activate_account_via_link(
 
     user.is_active = True
     await db.delete(token_record)
-    
+
     try:
         await db.commit()
-        
+
         # Send activation complete email
         send_activation_complete_email.delay(user.id)
     except SQLAlchemyError:
         await db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred during account activation."
         )
 
@@ -716,7 +717,7 @@ async def password_reset_form(
 ):
     """
     Display a password reset form when user clicks the link in their email.
-    
+
     This endpoint validates the token and shows an HTML form for the user
     to enter their new password. The form submits to the complete endpoint.
 
@@ -728,7 +729,7 @@ async def password_reset_form(
         HTMLResponse: An HTML form for password reset or error page.
     """
     from fastapi.responses import HTMLResponse
-    
+
     # Validate token exists and is not expired
     stmt = (
         select(PasswordResetTokenModel)
@@ -769,7 +770,7 @@ async def password_reset_form(
         # Clean up expired token
         await db.delete(token_record)
         await db.commit()
-        
+
         error_html = """
         <!DOCTYPE html>
         <html>
@@ -795,7 +796,7 @@ async def password_reset_form(
         return HTMLResponse(content=error_html, status_code=400)
 
     user = token_record.user
-    
+
     # Generate password reset form
     form_html = f"""
     <!DOCTYPE html>
@@ -971,5 +972,86 @@ async def password_reset_form(
     </body>
     </html>
     """
-    
+
     return HTMLResponse(content=form_html)
+
+@accounts_router.post(
+    "/change-password/",
+    response_model=MessageResponseSchema,
+    summary="Change User Password",
+    description=(
+        "Allows a logged-in user to change their password by providing the old password "
+        "and a new password. Validates the old password and enforces password complexity."
+    ),
+    status_code=status.HTTP_200_OK,
+    responses={
+        400: {
+            "description": (
+                "Bad Request - The old password is incorrect, "
+                "the new passwords do not match, or the new password does not meet complexity requirements."
+            ),
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "incorrect_old_password": {
+                            "summary": "Incorrect Old Password",
+                            "value": {"detail": "Old password is incorrect."},
+                        },
+                        "passwords_do_not_match": {
+                            "summary": "New Passwords Do Not Match",
+                            "value": {"detail": "New password and confirmation do not match."},
+                        },
+                        "weak_password": {
+                            "summary": "Weak Password",
+                            "value": {"detail": "New password does not meet complexity requirements."},
+                        },
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Internal Server Error - An error occurred while changing the password.",
+            "content": {"application/json": {"example": {"detail": "An error occurred while changing the password."}}},
+        },
+    },
+)
+async def change_password(
+    data: PasswordChangeRequestSchema,
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponseSchema:
+    """
+    Endpoint to change the password of the currently authenticated user.
+
+    Validates the old password, checks the new password complexity and confirmation,
+    then updates the user's password in the database.
+
+    Args:
+        data (PasswordChangeRequestSchema): The request data containing old password,
+            new password, and new password confirmation.
+        current_user (UserModel): The currently authenticated user.
+        db (AsyncSession): The asynchronous database session.
+
+    Returns:
+        MessageResponseSchema: A success message indicating the password was changed.
+
+    Raises:
+        HTTPException:
+            - 400 Bad Request if the old password is incorrect or new passwords mismatch.
+            - 500 Internal Server Error if a database error occurs.
+    """
+    if not current_user.verify_password(data.old_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Old password is incorrect.")
+
+    try:
+        current_user.password = data.new_password
+        db.add(current_user)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while changing the password.",
+        )
+
+    return MessageResponseSchema(message="Password changed successfully.")
