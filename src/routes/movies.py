@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from typing import List, Optional, Literal
 
-from sqlalchemy.orm import  selectinload
+from sqlalchemy.orm import selectinload
 
 from src.database.models import CommentModel
 from src.database.models import UserModel
@@ -484,7 +484,6 @@ async def create_movie(
         raise HTTPException(status_code=400, detail="Certification ID not found")
 
     new_movie = MovieModel(
-        uuid=movie.uuid,
         name=movie.name,
         year=movie.year,
         time=movie.time,
