@@ -33,6 +33,32 @@ clean_git_locks() {
     rm -f "$APP_DIR/.git/HEAD.lock" || true
 }
 
+init_default_data() {
+    echo "🎯 Initializing default data..."
+    
+    # Try to run init command using docker exec
+    local max_attempts=3
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        echo "  📝 Attempt $attempt/$max_attempts to initialize default data..."
+        
+        if docker compose -f docker-compose-prod.yml exec -T web python -m src.management.cli init-data --prod; then
+            echo "  ✅ Default data initialized successfully!"
+            return 0
+        else
+            echo "  ⚠️  Attempt $attempt failed, retrying in 5 seconds..."
+            sleep 5
+            attempt=$((attempt + 1))
+        fi
+    done
+    
+    echo "  ⚠️  Could not initialize default data after $max_attempts attempts"
+    echo "  ℹ️  You can run this manually later:"
+    echo "     docker compose -f docker-compose-prod.yml exec web python -m src.management.cli init-data --prod"
+    return 1
+}
+
 echo "🚀 Starting deployment process..."
 
 if [ ! -d "$APP_DIR" ]; then
@@ -76,16 +102,28 @@ echo "🏗️ Building and starting containers..."
 docker compose -f docker-compose-prod.yml up -d --build --remove-orphans || handle_error "Docker Compose failed"
 
 echo "⏳ Waiting for services to start..."
-sleep 20
+sleep 30
 
 echo "🔍 Checking service health..."
 docker compose -f docker-compose-prod.yml ps || handle_error "Failed to check services"
 
+echo "📊 Checking container logs..."
+echo "  Backend logs (last 10 lines):"
+docker compose -f docker-compose-prod.yml logs --tail=10 web || true
+
+# Initialize default data after successful deployment
+init_default_data
+
 echo "✅ Deployment completed successfully!"
 echo ""
 if [ "$FULL_RESET" = true ]; then
-    echo "⚠️  Database was reset. You may need to create initial data."
+    echo "⚠️  Database was reset and re-initialized with default data."
 else
-    echo "ℹ️  Database data preserved. Migrations ran automatically."
+    echo "ℹ️  Database data preserved. Migrations and data initialization ran automatically."
 fi
 echo "ℹ️  Use --full-reset flag to completely reset database and volumes."
+echo ""
+echo "🔗 Available services:"
+echo "   • API: https://fast-furious.work.gd"
+echo "   • Flower: https://fast-furious.work.gd/flower"
+echo "   • MinIO: https://fast-furious.work.gd/minio"
