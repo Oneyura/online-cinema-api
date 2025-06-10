@@ -1,3 +1,5 @@
+# src/schemas/movies.py
+
 from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional, Literal
@@ -46,7 +48,6 @@ class CertificationCreate(CertificationBase):
     pass
 
 
-# Ці схеми не включають поле 'movies', щоб уникнути MissingGreenlet
 class GenreCreateResponse(BaseModel):
     id: int = Field(..., description="Unique identifier of the genre.")
     name: str = Field(..., description="Genre name")
@@ -171,7 +172,7 @@ class MovieUpdate(MovieCreate):
     actor_ids: Optional[List[int]] = None
 
 
-# --- Flat Response Schemas for nested objects within MovieCreateResponse ---
+# --- Flat Response Schemas for nested objects within MovieCreateResponse and MovieResponse ---
 class DirectorFlatResponse(BaseModel):
     id: int
     name: str
@@ -217,7 +218,28 @@ class MovieCreateResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- Movie Response for detailed GET requests (can have nested reverse relationships) ---
+# --- Movie Response for detailed GET requests (uses flat nested schemas) ---
+class MovieResponse(BaseModel): # MovieResponse тепер не успадковує MovieCreate, щоб уникнути непотрібних полів
+    id: int = Field(..., description="The unique ID of the movie")
+    uuid: UUID
+    name: str
+    year: int
+    time: int
+    imdb: float
+    votes: int
+    meta_score: Optional[float] = None
+    gross: Optional[float] = None
+    description: str
+    price: Decimal
+    certification: Optional[CertificationFlatResponse] = None
+    genres: List[GenreFlatResponse] = []
+    directors: List[DirectorFlatResponse] = []
+    actors: List[ActorFlatResponse] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Schemas for lists of movies, or nested within Directors/Actors/Genres/Certifications ---
 class MovieResponseNested(BaseModel):
     id: int
     uuid: UUID
@@ -234,15 +256,6 @@ class MovieResponseForDirector(BaseModel):
     year: int
     time: int
     imdb: float
-    votes: int
-    meta_score: Optional[float] = None
-    gross: Optional[float] = None
-    description: str
-    price: Decimal
-    certification: Optional['CertificationResponse'] = None
-    genres: List['GenreResponse'] = []
-    actors: List['ActorResponse'] = []
-
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -264,32 +277,16 @@ class DirectorResponse(DirectorBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-# DirectorUpdate schema (already correct from previous discussion)
-class DirectorUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100, description="New name for the director. Must be unique if provided.")
-    model_config = ConfigDict(from_attributes=True) # Confirmed correct for Pydantic v2
-
-
 class CertificationResponse(CertificationBase):
     id: int
     movies: List["MovieResponseNested"] = []
     model_config = ConfigDict(from_attributes=True)
 
 
-class MovieResponse(MovieCreate):
-    id: int = Field(..., description="The unique ID of the movie")
-    uuid: UUID # Keep uuid for response, it will be generated and returned
-    certification: CertificationResponse
-    genres: List[GenreResponse] = []
-    directors: List[DirectorResponse] = []
-    actors: List[ActorResponse] = []
-
-    # These fields are for input, exclude them from output when returning MovieResponse
-    genre_ids: Optional[List[int]] = Field(None, exclude=True)
-    director_ids: Optional[List[int]] = Field(None, exclude=True)
-    actor_ids: Optional[List[int]] = Field(None, exclude=True)
-
-    model_config = ConfigDict(from_attributes=True)
+# DirectorUpdate schema (already correct from previous discussion)
+class DirectorUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100, description="New name for the director. Must be unique if provided.")
+    model_config = ConfigDict(from_attributes=True) # Confirmed correct for Pydantic v2
 
 
 # --- Comment Schemas ---
