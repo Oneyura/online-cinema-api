@@ -46,7 +46,7 @@ class CertificationCreate(CertificationBase):
     pass
 
 
-# --- Response Schemas for POST/PUT operations (simplified, no reverse relationships) ---
+# Ці схеми не включають поле 'movies', щоб уникнути MissingGreenlet
 class GenreCreateResponse(BaseModel):
     id: int = Field(..., description="Unique identifier of the genre.")
     name: str = Field(..., description="Genre name")
@@ -155,6 +155,7 @@ class MovieCreate(BaseModel):
 
 
 class MovieUpdate(MovieCreate):
+    # UUID should not be updated.
     name: Optional[str] = None
     year: Optional[int] = None
     time: Optional[int] = None
@@ -169,21 +170,25 @@ class MovieUpdate(MovieCreate):
     director_ids: Optional[List[int]] = None
     actor_ids: Optional[List[int]] = None
 
+
 # --- Flat Response Schemas for nested objects within MovieCreateResponse ---
 class DirectorFlatResponse(BaseModel):
     id: int
     name: str
     model_config = ConfigDict(from_attributes=True)
 
+
 class ActorFlatResponse(BaseModel):
     id: int
     name: str
     model_config = ConfigDict(from_attributes=True)
 
+
 class GenreFlatResponse(BaseModel):
     id: int
     name: str
     model_config = ConfigDict(from_attributes=True)
+
 
 class CertificationFlatResponse(BaseModel):
     id: int
@@ -204,10 +209,10 @@ class MovieCreateResponse(BaseModel):
     gross: Optional[float] = None
     description: str
     price: Decimal
-    certification: Optional[CertificationFlatResponse] = None
-    genres: List[GenreFlatResponse] = []
-    directors: List[DirectorFlatResponse] = []
-    actors: List[ActorFlatResponse] = []
+    certification: Optional[CertificationFlatResponse] = None # Use flat
+    genres: List[GenreFlatResponse] = [] # Use flat
+    directors: List[DirectorFlatResponse] = [] # Use flat
+    actors: List[ActorFlatResponse] = [] # Use flat
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -259,10 +264,10 @@ class DirectorResponse(DirectorBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+# DirectorUpdate schema (already correct from previous discussion)
 class DirectorUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100, description="New name for the director. Must be unique if provided.")
-
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True) # Confirmed correct for Pydantic v2
 
 
 class CertificationResponse(CertificationBase):
@@ -273,13 +278,13 @@ class CertificationResponse(CertificationBase):
 
 class MovieResponse(MovieCreate):
     id: int = Field(..., description="The unique ID of the movie")
-    uuid: UUID # Keep uuid for response
+    uuid: UUID # Keep uuid for response, it will be generated and returned
     certification: CertificationResponse
     genres: List[GenreResponse] = []
     directors: List[DirectorResponse] = []
     actors: List[ActorResponse] = []
 
-    # These fields are for input, exclude them from output
+    # These fields are for input, exclude them from output when returning MovieResponse
     genre_ids: Optional[List[int]] = Field(None, exclude=True)
     director_ids: Optional[List[int]] = Field(None, exclude=True)
     actor_ids: Optional[List[int]] = Field(None, exclude=True)
@@ -306,11 +311,13 @@ class CommentCreate(BaseModel):
 
 class CommentResponse(CommentBase):
     user: UserPublicResponseSchema
+    # Self-referencing list for nested comments
     replies: Optional[List["CommentResponse"]] = None
 
 
 class CommentResponseNested(CommentBase):
     user: UserPublicResponseSchema
+    # Self-referencing list for nested comments
     replies: Optional[List["CommentResponseNested"]] = None
 
 
@@ -368,6 +375,9 @@ class FavoriteMovieResponse(BaseModel):
 
 # --- Rebuild Pydantic models for forward references ---
 # Ensure these are called after all related models are defined.
+# If you have a circular dependency (e.g., MovieResponseForDirector refers to CertificationResponse
+# and CertificationResponse refers to MovieResponseNested, which refers back), you might need
+# to carefully order these or consider making some relationships flat where deep nesting is not required.
 MovieResponseNested.model_rebuild()
 MovieResponseForDirector.model_rebuild()
 GenreResponse.model_rebuild()
