@@ -7,7 +7,6 @@ from datetime import datetime
 
 from sqlalchemy.orm.attributes import Mapped
 
-from src.database.models.payments import PaymentsItemModel
 from src.database.models.base import Base
 
 

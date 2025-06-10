@@ -7,8 +7,13 @@ from sqlalchemy.engine import Connection
 from src.config.settings import settings
 from src.database.models.base import Base
 
-# Import all models so Alembic can detect them
-import src.database.models  # noqa
+# Import all models individually to avoid circular imports
+from src.database.models.accounts import UserGroupModel, UserModel, UserProfileModel, ActivationTokenModel, PasswordResetTokenModel, RefreshTokenModel
+from src.database.models.movies import GenreModel, ActorModel, DirectorModel, CertificationModel, MovieModel, MovieLikeModel, MovieRatingModel, FavoriteMovieModel
+from src.database.models.cart import CartModel, CartItemModel
+from src.database.models.comment import CommentModel
+from src.database.models.orders import Order, OrderItem
+from src.database.models.payments import PaymentsModel, PaymentsItemModel
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
