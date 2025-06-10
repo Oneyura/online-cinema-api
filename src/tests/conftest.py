@@ -1,10 +1,13 @@
 import pytest
+import pytest_asyncio
+from asgi_lifespan import LifespanManager
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.database.models import UserModel
 from src.database.models.base import Base
+from src.database.session import AsyncSessionLocal, engine
 from src.main import app
 from src.config.dependencies import get_db
 
