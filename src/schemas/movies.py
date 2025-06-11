@@ -286,7 +286,7 @@ class CertificationResponse(CertificationBase):
 # DirectorUpdate schema (already correct from previous discussion)
 class DirectorUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100, description="New name for the director. Must be unique if provided.")
-    model_config = ConfigDict(from_attributes=True) # Confirmed correct for Pydantic v2
+    model_config = ConfigDict(from_attributes=True)
 
 
 # --- Comment Schemas ---

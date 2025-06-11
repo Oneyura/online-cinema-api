@@ -177,6 +177,25 @@ async def get_genres_with_counts(db: AsyncSession = Depends(get_db)) -> List[Gen
     genres = result.scalars().unique().all() # Added .unique() for distinct genres
     return genres
 
+
+@router.get("/genres/{genre_id}", response_model=GenreResponse)
+async def get_genre(
+        genre_id: int,
+        db: AsyncSession = Depends(get_db)
+) -> GenreResponse:
+    """
+    Get information about a specific genre by ID, including a list of associated movies.
+    """
+    query = select(GenreModel).filter_by(id=genre_id).options(
+        selectinload(GenreModel.movies)
+    )
+    result = await db.execute(query)
+    genre_obj = result.scalars().first()
+    if not genre_obj:
+        raise HTTPException(status_code=404, detail="Genre not found.")
+    return genre_obj
+
+
 @router.post("/genres", response_model=GenreCreate, status_code=status.HTTP_201_CREATED)
 async def create_genre(
         genre: GenreCreate,
@@ -205,7 +224,9 @@ async def update_genre(
         moderator: UserModel = Depends(get_current_moderator)
 ) -> GenreResponse:
     """Update an existing genre (Moderator only)."""
-    genre = await db.execute(select(GenreModel).filter_by(id=genre_id))
+    genre = await db.execute(select(GenreModel).filter_by(id=genre_id).options(
+        selectinload(GenreModel.movies)
+    ))
     genre = genre.scalars().first()
     if not genre:
         raise HTTPException(status_code=404, detail="Genre not found")
@@ -273,6 +294,7 @@ async def get_movies_by_genre(
     movies = result.scalars().all()
     return movies
 
+
 # --- CRUD for Actors (Moderator only) ---
 @router.post("/actors", response_model=ActorCreate, status_code=status.HTTP_201_CREATED)
 async def create_actor(
@@ -294,6 +316,45 @@ async def create_actor(
         await db.rollback()
         raise HTTPException(status_code=400, detail=f"Could not create actor: {e}")
 
+@router.get("/actors/{actor_id}", response_model=ActorResponse)
+async def get_actor(
+        actor_id: int,
+        db: AsyncSession = Depends(get_db)
+) -> ActorResponse:
+    """
+    Get information about a specific actor by ID, including a list of associated movies.
+    """
+    query = select(ActorModel).filter_by(id=actor_id).options(
+        selectinload(ActorModel.movies)
+    )
+    result = await db.execute(query)
+    actor_obj = result.scalars().first()
+    if not actor_obj:
+        raise HTTPException(status_code=404, detail="Actor not found.")
+    return actor_obj
+
+
+@router.get("/actors", response_model=List[ActorResponse])
+async def get_all_actors(
+        db: AsyncSession = Depends(get_db),
+        page: int = Query(1, ge=1),
+        limit: int = Query(10, ge=1, le=100)
+) -> List[ActorResponse]:
+    """
+    Get information about all actors, including a list of associated movies.
+    """
+    query = select(ActorModel).options(
+        selectinload(ActorModel.movies)
+    )
+
+    offset = (page - 1) * limit
+    query = query.offset(offset).limit(limit)
+
+    result = await db.execute(query)
+    actors = result.scalars().unique().all()
+
+    return actors
+
 
 @router.put("/actors/{actor_id}", response_model=ActorResponse)
 async def update_actor(
@@ -303,7 +364,9 @@ async def update_actor(
         moderator: UserModel = Depends(get_current_moderator)
 ) -> ActorResponse:
     """Update an existing actor (Moderator only)."""
-    actor = await db.execute(select(ActorModel).filter_by(id=actor_id))
+    actor = await db.execute(select(ActorModel).filter_by(id=actor_id).options(
+        selectinload(ActorModel.movies)
+    ))
     actor = actor.scalars().first()
     if not actor:
         raise HTTPException(status_code=404, detail="Actor not found")
@@ -345,6 +408,7 @@ async def delete_actor(
         raise HTTPException(status_code=500, detail=f"Could not delete actor: {e}")
     return
 
+
 # --- CRUD for Directors (Moderator only) ---
 @router.post("/directors", response_model=DirectorCreateResponse, status_code=status.HTTP_201_CREATED)
 async def create_director(
@@ -366,6 +430,45 @@ async def create_director(
         await db.rollback()
         raise HTTPException(status_code=400, detail=f"Could not create director: {e}")
 
+
+@router.get("/directors", response_model=List[DirectorResponse])
+async def get_all_directors(
+        db: AsyncSession = Depends(get_db),
+        page: int = Query(1, ge=1),
+        limit: int = Query(10, ge=1, le=100)
+) -> List[DirectorResponse]:
+    """
+    Get a list of all directors with pagination, including their movies.
+    """
+    query = select(DirectorModel).options(
+        selectinload(DirectorModel.movies)
+    )
+
+    offset = (page - 1) * limit
+    query = query.offset(offset).limit(limit)
+
+    result = await db.execute(query)
+    directors = result.scalars().unique().all()
+    return directors
+
+@router.get("/directors/{director_id}", response_model=DirectorResponse)
+async def get_director(
+        director_id: int,
+        db: AsyncSession = Depends(get_db)
+) -> DirectorResponse:
+    """
+    Get information about a specific director by ID, including a list of associated movies.
+    """
+    query = select(DirectorModel).filter_by(id=director_id).options(
+        selectinload(DirectorModel.movies)
+    )
+    result = await db.execute(query)
+    director_obj = result.scalars().first()
+    if not director_obj:
+        raise HTTPException(status_code=404, detail="Director not found.")
+    return director_obj
+
+
 @router.put("/directors/{director_id}", response_model=DirectorResponse)
 async def update_director(
         director_id: int,
@@ -374,7 +477,9 @@ async def update_director(
         moderator: UserModel = Depends(get_current_moderator)
 ) -> DirectorResponse:
     """Update an existing director (Moderator only)."""
-    director = await db.execute(select(DirectorModel).filter_by(id=director_id))
+    director = await db.execute(select(DirectorModel).filter_by(id=director_id).options(
+        selectinload(DirectorModel.movies)
+    ))
     director = director.scalars().first()
     if not director:
         raise HTTPException(status_code=404, detail="Director not found")
@@ -395,6 +500,7 @@ async def update_director(
         await db.rollback()
         raise HTTPException(status_code=400, detail=f"Could not update director: {e}")
 
+
 @router.delete("/directors/{director_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_director(
         director_id: int,
@@ -414,6 +520,7 @@ async def delete_director(
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Could not delete director: {e}")
     return
+
 
 # --- CRUD for Certifications (Moderator only) ---
 @router.post("/certifications", response_model=CertificationCreate, status_code=status.HTTP_201_CREATED)
@@ -437,6 +544,47 @@ async def create_certification(
         raise HTTPException(status_code=400, detail=f"Could not create certification: {e}")
 
 
+# --- ДОДАНО: GET всі сертифікати ---
+@router.get("/certifications", response_model=List[CertificationResponse])
+async def get_all_certifications(
+        db: AsyncSession = Depends(get_db),
+        page: int = Query(1, ge=1),
+        limit: int = Query(10, ge=1, le=100)
+) -> List[CertificationResponse]:
+    """
+    Get a list of all certifications with pagination, including their associated movies.
+    """
+    query = select(CertificationModel).options(
+        selectinload(CertificationModel.movies) # Eager load movies
+    )
+
+    offset = (page - 1) * limit
+    query = query.offset(offset).limit(limit)
+
+    result = await db.execute(query)
+    certifications = result.scalars().unique().all()
+    return certifications
+
+
+# --- ДОДАНО: GET сертифікат за ID ---
+@router.get("/certifications/{cert_id}", response_model=CertificationResponse)
+async def get_certification(
+        cert_id: int,
+        db: AsyncSession = Depends(get_db)
+) -> CertificationResponse:
+    """
+    Get information about a specific certification by ID, including a list of associated movies.
+    """
+    query = select(CertificationModel).filter_by(id=cert_id).options(
+        selectinload(CertificationModel.movies) # Eager load movies
+    )
+    result = await db.execute(query)
+    certification_obj = result.scalars().first()
+    if not certification_obj:
+        raise HTTPException(status_code=404, detail="Certification not found.")
+    return certification_obj
+
+
 @router.put("/certifications/{cert_id}", response_model=CertificationResponse)
 async def update_certification(
         cert_id: int,
@@ -444,9 +592,12 @@ async def update_certification(
         db: AsyncSession = Depends(get_db),
         moderator: UserModel = Depends(get_current_moderator)
 ) -> CertificationResponse:
-    """Update an existing certification (Moderator only)."""
-    cert = await db.execute(select(CertificationModel).filter_by(id=cert_id))
-    cert = cert.scalars().first()
+    cert_query = select(CertificationModel).filter_by(id=cert_id).options(
+        selectinload(CertificationModel.movies)
+    )
+    cert_result = await db.execute(cert_query)
+    cert = cert_result.scalars().first()
+
     if not cert:
         raise HTTPException(status_code=404, detail="Certification not found")
 
@@ -458,9 +609,11 @@ async def update_certification(
             raise HTTPException(status_code=409, detail="Certification with this name already exists")
 
     cert.name = cert_update.name
+
     try:
         await db.commit()
         await db.refresh(cert)
+
         return cert
     except Exception as e:
         await db.rollback()
@@ -485,6 +638,7 @@ async def delete_certification(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Could not delete certification: {e}")
+
 
 # --- User-specific favorite movies, placed before general {movie_id} routes ---
 @router.get("/favorites", response_model=List[MovieResponseNested])
