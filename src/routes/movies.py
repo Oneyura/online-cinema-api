@@ -148,7 +148,15 @@ async def browse_movies(
     """
     Browse the movie catalog with pagination, search, filter, and sort options.
     """
-    query = select(MovieModel)
+    query = select(MovieModel).options(
+        selectinload(MovieModel.genres),
+        selectinload(MovieModel.directors),
+        selectinload(MovieModel.actors),
+        selectinload(MovieModel.certification),
+        selectinload(MovieModel.movie_likes),
+        selectinload(MovieModel.movie_ratings),
+        selectinload(MovieModel.comments),
+    )
 
     # Apply filters and sorting
     query = await apply_movie_filters_and_sort(
@@ -172,7 +180,12 @@ async def get_genres_with_counts(db: AsyncSession = Depends(get_db)) -> List[Gen
     """
     Get a list of all genres with the count of movies in each.
     """
-    genres_query = select(GenreModel).options(selectinload(GenreModel.movies))
+    genres_query = select(GenreModel).options(
+        selectinload(GenreModel.movies).selectinload(MovieModel.genres),
+        selectinload(GenreModel.movies).selectinload(MovieModel.directors),
+        selectinload(GenreModel.movies).selectinload(MovieModel.actors),
+        selectinload(GenreModel.movies).selectinload(MovieModel.certification)
+    )
     result = await db.execute(genres_query)
     genres = result.scalars().unique().all() # Added .unique() for distinct genres
     return genres
@@ -187,7 +200,10 @@ async def get_genre(
     Get information about a specific genre by ID, including a list of associated movies.
     """
     query = select(GenreModel).filter_by(id=genre_id).options(
-        selectinload(GenreModel.movies)
+        selectinload(GenreModel.movies).selectinload(MovieModel.genres),
+        selectinload(GenreModel.movies).selectinload(MovieModel.directors),
+        selectinload(GenreModel.movies).selectinload(MovieModel.actors),
+        selectinload(GenreModel.movies).selectinload(MovieModel.certification)
     )
     result = await db.execute(query)
     genre_obj = result.scalars().first()
@@ -211,7 +227,17 @@ async def create_genre(
         db.add(new_genre)
         await db.commit()
         await db.refresh(new_genre)
-        return new_genre
+
+        loaded_genre_query = select(GenreModel).filter_by(id=new_genre.id).options(
+            selectinload(GenreModel.movies).selectinload(MovieModel.genres),
+            selectinload(GenreModel.movies).selectinload(MovieModel.directors),
+            selectinload(GenreModel.movies).selectinload(MovieModel.actors),
+            selectinload(GenreModel.movies).selectinload(MovieModel.certification)
+        )
+        loaded_genre_result = await db.execute(loaded_genre_query)
+        loaded_genre = loaded_genre_result.scalars().first()
+        return loaded_genre
+
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=400, detail=f"Could not create genre: {e}")
@@ -225,7 +251,10 @@ async def update_genre(
 ) -> GenreResponse:
     """Update an existing genre (Moderator only)."""
     genre = await db.execute(select(GenreModel).filter_by(id=genre_id).options(
-        selectinload(GenreModel.movies)
+        selectinload(GenreModel.movies).selectinload(MovieModel.genres),
+        selectinload(GenreModel.movies).selectinload(MovieModel.directors),
+        selectinload(GenreModel.movies).selectinload(MovieModel.actors),
+        selectinload(GenreModel.movies).selectinload(MovieModel.certification)
     ))
     genre = genre.scalars().first()
     if not genre:
@@ -286,6 +315,12 @@ async def get_movies_by_genre(
         select(MovieModel)
         .join(MoviesGenresModel)
         .filter(MoviesGenresModel.c.genre_id == genre_id)
+        .options(
+            selectinload(MovieModel.genres),
+            selectinload(MovieModel.directors),
+            selectinload(MovieModel.actors),
+            selectinload(MovieModel.certification)
+        )
     )
     offset = (page - 1) * limit
     query = query.offset(offset).limit(limit)
@@ -311,7 +346,15 @@ async def create_actor(
         db.add(new_actor)
         await db.commit()
         await db.refresh(new_actor)
-        return new_actor
+        loaded_actor_query = select(ActorModel).filter_by(id=new_actor.id).options(
+            selectinload(ActorModel.movies).selectinload(MovieModel.genres),
+            selectinload(ActorModel.movies).selectinload(MovieModel.directors),
+            selectinload(ActorModel.movies).selectinload(MovieModel.actors),
+            selectinload(ActorModel.movies).selectinload(MovieModel.certification)
+        )
+        loaded_actor_result = await db.execute(loaded_actor_query)
+        loaded_actor = loaded_actor_result.scalars().first()
+        return loaded_actor
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=400, detail=f"Could not create actor: {e}")
@@ -325,7 +368,10 @@ async def get_actor(
     Get information about a specific actor by ID, including a list of associated movies.
     """
     query = select(ActorModel).filter_by(id=actor_id).options(
-        selectinload(ActorModel.movies)
+        selectinload(ActorModel.movies).selectinload(MovieModel.genres),
+        selectinload(ActorModel.movies).selectinload(MovieModel.directors),
+        selectinload(ActorModel.movies).selectinload(MovieModel.actors),
+        selectinload(ActorModel.movies).selectinload(MovieModel.certification)
     )
     result = await db.execute(query)
     actor_obj = result.scalars().first()
@@ -344,7 +390,10 @@ async def get_all_actors(
     Get information about all actors, including a list of associated movies.
     """
     query = select(ActorModel).options(
-        selectinload(ActorModel.movies)
+        selectinload(ActorModel.movies).selectinload(MovieModel.genres),
+        selectinload(ActorModel.movies).selectinload(MovieModel.directors),
+        selectinload(ActorModel.movies).selectinload(MovieModel.actors),
+        selectinload(ActorModel.movies).selectinload(MovieModel.certification)
     )
 
     offset = (page - 1) * limit
@@ -365,7 +414,10 @@ async def update_actor(
 ) -> ActorResponse:
     """Update an existing actor (Moderator only)."""
     actor = await db.execute(select(ActorModel).filter_by(id=actor_id).options(
-        selectinload(ActorModel.movies)
+        selectinload(ActorModel.movies).selectinload(MovieModel.genres),
+        selectinload(ActorModel.movies).selectinload(MovieModel.directors),
+        selectinload(ActorModel.movies).selectinload(MovieModel.actors),
+        selectinload(ActorModel.movies).selectinload(MovieModel.certification)
     ))
     actor = actor.scalars().first()
     if not actor:
@@ -406,7 +458,6 @@ async def delete_actor(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Could not delete actor: {e}")
-    return
 
 
 # --- CRUD for Directors (Moderator only) ---
@@ -425,7 +476,17 @@ async def create_director(
         db.add(new_director)
         await db.commit()
         await db.refresh(new_director)
-        return new_director
+
+        loaded_director_query = select(DirectorModel).filter_by(id=new_director.id).options(
+            selectinload(DirectorModel.movies).selectinload(MovieModel.genres),
+            selectinload(DirectorModel.movies).selectinload(MovieModel.directors),
+            selectinload(DirectorModel.movies).selectinload(MovieModel.actors),
+            selectinload(DirectorModel.movies).selectinload(MovieModel.certification)
+        )
+        loaded_director_result = await db.execute(loaded_director_query)
+        loaded_director = loaded_director_result.scalars().first()
+        return loaded_director
+
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=400, detail=f"Could not create director: {e}")
@@ -441,7 +502,10 @@ async def get_all_directors(
     Get a list of all directors with pagination, including their movies.
     """
     query = select(DirectorModel).options(
-        selectinload(DirectorModel.movies)
+        selectinload(DirectorModel.movies).selectinload(MovieModel.genres),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.directors),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.actors),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.certification)
     )
 
     offset = (page - 1) * limit
@@ -460,7 +524,10 @@ async def get_director(
     Get information about a specific director by ID, including a list of associated movies.
     """
     query = select(DirectorModel).filter_by(id=director_id).options(
-        selectinload(DirectorModel.movies)
+        selectinload(DirectorModel.movies).selectinload(MovieModel.genres),  # <--- Додано
+        selectinload(DirectorModel.movies).selectinload(MovieModel.directors),  # <--- Додано
+        selectinload(DirectorModel.movies).selectinload(MovieModel.actors),  # <--- Додано
+        selectinload(DirectorModel.movies).selectinload(MovieModel.certification)
     )
     result = await db.execute(query)
     director_obj = result.scalars().first()
@@ -478,7 +545,10 @@ async def update_director(
 ) -> DirectorResponse:
     """Update an existing director (Moderator only)."""
     director = await db.execute(select(DirectorModel).filter_by(id=director_id).options(
-        selectinload(DirectorModel.movies)
+        selectinload(DirectorModel.movies).selectinload(MovieModel.genres),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.directors),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.actors),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.certification)
     ))
     director = director.scalars().first()
     if not director:
@@ -538,13 +608,21 @@ async def create_certification(
         db.add(new_cert)
         await db.commit()
         await db.refresh(new_cert)
-        return new_cert
+        loaded_cert_query = select(CertificationModel).filter_by(id=new_cert.id).options(
+            selectinload(CertificationModel.movies).selectinload(MovieModel.genres),
+            selectinload(CertificationModel.movies).selectinload(MovieModel.directors),
+            selectinload(CertificationModel.movies).selectinload(MovieModel.actors),
+            selectinload(CertificationModel.movies).selectinload(MovieModel.certification)
+        )
+        loaded_cert_result = await db.execute(loaded_cert_query)
+        loaded_cert = loaded_cert_result.scalars().first()
+        return loaded_cert
+
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=400, detail=f"Could not create certification: {e}")
 
 
-# --- ДОДАНО: GET всі сертифікати ---
 @router.get("/certifications", response_model=List[CertificationResponse])
 async def get_all_certifications(
         db: AsyncSession = Depends(get_db),
@@ -555,7 +633,10 @@ async def get_all_certifications(
     Get a list of all certifications with pagination, including their associated movies.
     """
     query = select(CertificationModel).options(
-        selectinload(CertificationModel.movies) # Eager load movies
+        selectinload(CertificationModel.movies).selectinload(MovieModel.genres),
+        selectinload(CertificationModel.movies).selectinload(MovieModel.directors),
+        selectinload(CertificationModel.movies).selectinload(MovieModel.actors),
+        selectinload(CertificationModel.movies).selectinload(MovieModel.certification)
     )
 
     offset = (page - 1) * limit
@@ -576,7 +657,10 @@ async def get_certification(
     Get information about a specific certification by ID, including a list of associated movies.
     """
     query = select(CertificationModel).filter_by(id=cert_id).options(
-        selectinload(CertificationModel.movies) # Eager load movies
+        selectinload(CertificationModel.movies).selectinload(MovieModel.genres),
+        selectinload(CertificationModel.movies).selectinload(MovieModel.directors),
+        selectinload(CertificationModel.movies).selectinload(MovieModel.actors),
+        selectinload(CertificationModel.movies).selectinload(MovieModel.certification)
     )
     result = await db.execute(query)
     certification_obj = result.scalars().first()
@@ -593,7 +677,10 @@ async def update_certification(
         moderator: UserModel = Depends(get_current_moderator)
 ) -> CertificationResponse:
     cert_query = select(CertificationModel).filter_by(id=cert_id).options(
-        selectinload(CertificationModel.movies)
+        selectinload(CertificationModel.movies).selectinload(MovieModel.genres),
+        selectinload(CertificationModel.movies).selectinload(MovieModel.directors),
+        selectinload(CertificationModel.movies).selectinload(MovieModel.actors),
+        selectinload(CertificationModel.movies).selectinload(MovieModel.certification)
     )
     cert_result = await db.execute(cert_query)
     cert = cert_result.scalars().first()
@@ -662,6 +749,14 @@ async def get_favorite_movies(
     """
     query = select(MovieModel).join(FavoriteMovieModel).filter(
         FavoriteMovieModel.user_id == current_user.id
+    ).options(
+        selectinload(MovieModel.genres),
+        selectinload(MovieModel.directors),
+        selectinload(MovieModel.actors),
+        selectinload(MovieModel.certification),
+        selectinload(MovieModel.movie_likes),
+        selectinload(MovieModel.movie_ratings),
+        selectinload(MovieModel.comments),
     )
 
     query = await apply_movie_filters_and_sort(
@@ -741,10 +836,13 @@ async def create_movie(
             select(MovieModel)
             .filter_by(id=new_movie.id)
             .options(
-                selectinload(MovieModel.certification),
+                selectinload(MovieModel.genres),
                 selectinload(MovieModel.directors),
                 selectinload(MovieModel.actors),
-                selectinload(MovieModel.genres)
+                selectinload(MovieModel.certification),
+                selectinload(MovieModel.movie_likes),
+                selectinload(MovieModel.movie_ratings),
+                selectinload(MovieModel.comments),
             )
         )
         return loaded_movie.scalars().first()
@@ -764,11 +862,13 @@ async def get_movie_details(
     View detailed description of a specific movie.
     """
     query = select(MovieModel).filter(MovieModel.id == movie_id).options(
-        # Eager load related data for detailed view
-        selectinload(MovieModel.certification),
         selectinload(MovieModel.genres),
         selectinload(MovieModel.directors),
-        selectinload(MovieModel.actors)
+        selectinload(MovieModel.actors),
+        selectinload(MovieModel.certification),
+        selectinload(MovieModel.movie_likes),
+        selectinload(MovieModel.movie_ratings),
+        selectinload(MovieModel.comments),
     )
     result = await db.execute(query)
     movie = result.scalars().first()
@@ -791,7 +891,15 @@ async def update_movie(
     """
     Update an existing movie by ID (Moderator only).
     """
-    movie = await db.execute(select(MovieModel).filter_by(id=movie_id))
+    movie = await db.execute(select(MovieModel).filter_by(id=movie_id).options(
+        selectinload(MovieModel.genres),
+        selectinload(MovieModel.directors),
+        selectinload(MovieModel.actors),
+        selectinload(MovieModel.certification),
+        selectinload(MovieModel.movie_likes),
+        selectinload(MovieModel.movie_ratings),
+        selectinload(MovieModel.comments),
+    ))
     movie = movie.scalars().first()
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
