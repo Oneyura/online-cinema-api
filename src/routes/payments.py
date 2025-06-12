@@ -21,7 +21,7 @@ from src.services.payments_services import clear_user_cart
 
 router = APIRouter()
 
-stripe.api_key = os.environ.get("STRIPE_API_KEY")
+stripe.api_key = os.environ.get("STRIPE_SECRET_KEY")
 
 @router.post("/payments/create")
 async def create_payment(
@@ -30,7 +30,14 @@ async def create_payment(
     user: UserModel = Depends(get_current_user),
 ):
     """Create a payment for an order"""
-    order = await get_order_for_user(payment_data.order_id, user, db)
+    # Load order with items eagerly
+    stmt = (
+        select(Order)
+        .options(selectinload(Order.items))
+        .where(Order.id == payment_data.order_id, Order.user_id == user.id)
+    )
+    result = await db.execute(stmt)
+    order = result.scalar_one_or_none()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
@@ -47,7 +54,16 @@ async def create_checkout_session(
         db: AsyncSession = Depends(get_db),
         user: UserModel = Depends(get_current_user),
 ):
-    order = await get_order_for_user(order_id, user, db)  # async якщо треба
+    # Load order with items eagerly
+    stmt = (
+        select(Order)
+        .options(selectinload(Order.items))
+        .where(Order.id == order_id, Order.user_id == user.id)
+    )
+    result = await db.execute(stmt)
+    order = result.scalar_one_or_none()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
     return create_checkout_session_service(order, user)
 
 
@@ -136,7 +152,7 @@ async def get_payments(
             "id": payment.id,
             "order_id": payment.order_id,
             "created_at": payment.created_at,
-            "status": payment.status.value,
+            "status": payment.status.name,
             "amount": float(payment.amount),
             "external_payment_id": payment.external_payment_id,
             "user_id": payment.user_id,
