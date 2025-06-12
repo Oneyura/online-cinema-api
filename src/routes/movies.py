@@ -251,17 +251,18 @@ async def update_genre(
         moderator: UserModel = Depends(get_current_moderator)
 ) -> GenreResponse:
     """Update an existing genre (Moderator only)."""
-    genre = await db.execute(select(GenreModel).filter_by(id=genre_id).options(
+    genre_query = select(GenreModel).filter_by(id=genre_id).options(
         selectinload(GenreModel.movies).selectinload(MovieModel.genres),
         selectinload(GenreModel.movies).selectinload(MovieModel.directors),
         selectinload(GenreModel.movies).selectinload(MovieModel.actors),
         selectinload(GenreModel.movies).selectinload(MovieModel.certification)
-    ))
-    genre = genre.scalars().first()
+    )
+    genre_result = await db.execute(genre_query)
+    genre = genre_result.scalars().first()
+
     if not genre:
         raise HTTPException(status_code=404, detail="Genre not found")
 
-    # Check if new name conflicts with existing genre (excluding self)
     if genre_update.name and genre_update.name != genre.name:
         existing_genre = await db.execute(select(GenreModel).filter(
             (GenreModel.name == genre_update.name) & (GenreModel.id != genre_id)
@@ -273,7 +274,16 @@ async def update_genre(
     try:
         await db.commit()
         await db.refresh(genre)
-        return genre
+        # Re-fetch the genre with all relationships explicitly loaded for the response
+        loaded_genre_query = select(GenreModel).filter_by(id=genre.id).options(
+            selectinload(GenreModel.movies).selectinload(MovieModel.genres),
+            selectinload(GenreModel.movies).selectinload(MovieModel.directors),
+            selectinload(GenreModel.movies).selectinload(MovieModel.actors),
+            selectinload(GenreModel.movies).selectinload(MovieModel.certification)
+        )
+        loaded_genre_result = await db.execute(loaded_genre_query)
+        loaded_genre = loaded_genre_result.scalars().first()
+        return loaded_genre
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=400, detail=f"Could not update genre: {e}")
@@ -414,13 +424,14 @@ async def update_actor(
         moderator: UserModel = Depends(get_current_moderator)
 ) -> ActorResponse:
     """Update an existing actor (Moderator only)."""
-    actor = await db.execute(select(ActorModel).filter_by(id=actor_id).options(
+    actor_query = select(ActorModel).filter_by(id=actor_id).options(
         selectinload(ActorModel.movies).selectinload(MovieModel.genres),
         selectinload(ActorModel.movies).selectinload(MovieModel.directors),
         selectinload(ActorModel.movies).selectinload(MovieModel.actors),
         selectinload(ActorModel.movies).selectinload(MovieModel.certification)
-    ))
-    actor = actor.scalars().first()
+    )
+    actor_result = await db.execute(actor_query)
+    actor = actor_result.scalars().first()
     if not actor:
         raise HTTPException(status_code=404, detail="Actor not found")
 
@@ -435,7 +446,16 @@ async def update_actor(
     try:
         await db.commit()
         await db.refresh(actor)
-        return actor
+        # Re-fetch the actor with all relationships explicitly loaded for the response
+        loaded_actor_query = select(ActorModel).filter_by(id=actor.id).options(
+            selectinload(ActorModel.movies).selectinload(MovieModel.genres),
+            selectinload(ActorModel.movies).selectinload(MovieModel.directors),
+            selectinload(ActorModel.movies).selectinload(MovieModel.actors),
+            selectinload(ActorModel.movies).selectinload(MovieModel.certification)
+        )
+        loaded_actor_result = await db.execute(loaded_actor_query)
+        loaded_actor = loaded_actor_result.scalars().first()
+        return loaded_actor
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=400, detail=f"Could not update actor: {e}")
