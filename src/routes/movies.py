@@ -545,9 +545,9 @@ async def get_director(
     Get information about a specific director by ID, including a list of associated movies.
     """
     query = select(DirectorModel).filter_by(id=director_id).options(
-        selectinload(DirectorModel.movies).selectinload(MovieModel.genres),  # <--- Додано
-        selectinload(DirectorModel.movies).selectinload(MovieModel.directors),  # <--- Додано
-        selectinload(DirectorModel.movies).selectinload(MovieModel.actors),  # <--- Додано
+        selectinload(DirectorModel.movies).selectinload(MovieModel.genres),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.directors),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.actors),
         selectinload(DirectorModel.movies).selectinload(MovieModel.certification)
     )
     result = await db.execute(query)
@@ -1006,7 +1006,7 @@ async def delete_movie(
 async def like_dislike_movie(
         movie_id: int,
         is_liked: bool = Query(..., description="True for like, False for dislike"),
-        current_user: UserModel = Depends(get_current_user),  # Requires authentication
+        current_user: UserModel = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ) -> MovieLikeResponse:
     """
