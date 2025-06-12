@@ -219,7 +219,7 @@ class MovieCreateResponse(BaseModel):
 
 
 # --- Movie Response for detailed GET requests (uses flat nested schemas) ---
-class MovieResponse(BaseModel): # MovieResponse тепер не успадковує MovieCreate, щоб уникнути непотрібних полів
+class MovieResponse(BaseModel):
     id: int = Field(..., description="The unique ID of the movie")
     uuid: UUID
     name: str
@@ -235,39 +235,77 @@ class MovieResponse(BaseModel): # MovieResponse тепер не успадков
     genres: List[GenreFlatResponse] = []
     directors: List[DirectorFlatResponse] = []
     actors: List[ActorFlatResponse] = []
+    # Додано для повноти, якщо фільм має відгуки, оцінки, лайки
+    movie_likes: List["MovieLikeResponse"] = []
+    movie_ratings: List["MovieRatingResponse"] = []
+    comments: List["CommentResponse"] = []
 
     model_config = ConfigDict(from_attributes=True)
 
 
 # --- Schemas for lists of movies, or nested within Directors/Actors/Genres/Certifications ---
 class MovieResponseNested(BaseModel):
+    # Ця схема використовується для movies всередині CertificationResponse
+    # Вона не повинна включати certification, щоб уникнути рекурсії
     id: int
     uuid: UUID
     name: str
     year: int
     imdb: float
+    genres: List[GenreFlatResponse] = []
+    directors: List[DirectorFlatResponse] = []
+    actors: List[ActorFlatResponse] = []
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MovieResponseNestedForGenres(BaseModel):
+    # Використовується для movies всередині GenreResponse
+    id: int
+    uuid: UUID
+    name: str
+    year: int
+    imdb: float
+    directors: List[DirectorFlatResponse] = []
+    actors: List[ActorFlatResponse] = []
+    certification: Optional[CertificationFlatResponse] = None # <-- ВИПРАВЛЕНО
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MovieResponseNestedForActor(BaseModel):
+    # Використовується для movies всередині ActorResponse
+    id: int
+    uuid: UUID
+    name: str
+    year: int
+    imdb: float
+    directors: List[DirectorFlatResponse] = []
+    genres: List[GenreFlatResponse] = []
+    certification: Optional[CertificationFlatResponse] = None # <-- ВИПРАВЛЕНО
     model_config = ConfigDict(from_attributes=True)
 
 
 class MovieResponseForDirector(BaseModel):
+    # Використовується для movies всередині DirectorResponse
     id: int
     uuid: UUID
     name: str
     year: int
-    time: int
     imdb: float
+    genres: List[GenreFlatResponse] = []
+    actors: List[ActorFlatResponse] = []
+    certification: Optional[CertificationFlatResponse] = None
     model_config = ConfigDict(from_attributes=True)
 
 
 class GenreResponse(GenreBase):
     id: int
-    movies: List["MovieResponseNested"] = []
+    movies: List["MovieResponseNestedForGenres"] = []
     model_config = ConfigDict(from_attributes=True)
 
 
 class ActorResponse(ActorBase):
     id: int
-    movies: List["MovieResponseNested"] = []
+    movies: List["MovieResponseNestedForActor"] = []
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -286,7 +324,7 @@ class CertificationResponse(CertificationBase):
 # DirectorUpdate schema (already correct from previous discussion)
 class DirectorUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100, description="New name for the director. Must be unique if provided.")
-    model_config = ConfigDict(from_attributes=True) # Confirmed correct for Pydantic v2
+    model_config = ConfigDict(from_attributes=True)
 
 
 # --- Comment Schemas ---
@@ -296,14 +334,18 @@ class CommentBase(BaseModel):
     movie_id: int
     text: str
     created_at: datetime
-    parent_comment_id: Optional[int] = None
+    # parent_comment_id: Optional[int] = None # <-- ЗВЕРНІТЬ УВАГУ: ЦЯ КОЛОНКА НЕ ІСНУЄ У БАЗІ ДАНИХ
+                                            # Якщо вона потрібна, створіть міграцію.
+                                            # Якщо ні, видаліть її з моделі SQLAlchemy і звідси.
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class CommentCreate(BaseModel):
     text: str = Field(..., min_length=1, max_length=1000)
-    parent_comment_id: Optional[int] = None
+    # parent_comment_id: Optional[int] = None # <-- ЗВЕРНІТЬ УВАГУ: ЦЯ КОЛОНКА НЕ ІСНУЄ У БАЗІ ДАНИХ
+                                            # Якщо вона потрібна, створіть міграцію.
+                                            # Якщо ні, видаліть її з моделі SQLAlchemy і звідси.
 
 
 class CommentResponse(CommentBase):
@@ -372,6 +414,8 @@ class FavoriteMovieResponse(BaseModel):
 
 # --- Rebuild Pydantic models for forward references ---
 MovieResponseNested.model_rebuild()
+MovieResponseNestedForGenres.model_rebuild()
+MovieResponseNestedForActor.model_rebuild()
 MovieResponseForDirector.model_rebuild()
 GenreResponse.model_rebuild()
 ActorResponse.model_rebuild()
