@@ -1,8 +1,6 @@
-# src/schemas/movies.py
-
 from datetime import date, datetime
 from decimal import Decimal
-from typing import List, Optional, Literal
+from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, ConfigDict, condecimal
@@ -245,8 +243,6 @@ class MovieResponse(BaseModel):
 
 # --- Schemas for lists of movies, or nested within Directors/Actors/Genres/Certifications ---
 class MovieResponseNested(BaseModel):
-    # Ця схема використовується для movies всередині CertificationResponse
-    # Вона не повинна включати certification, щоб уникнути рекурсії
     id: int
     uuid: UUID
     name: str
@@ -259,7 +255,6 @@ class MovieResponseNested(BaseModel):
 
 
 class MovieResponseNestedForGenres(BaseModel):
-    # Використовується для movies всередині GenreResponse
     id: int
     uuid: UUID
     name: str
@@ -267,12 +262,11 @@ class MovieResponseNestedForGenres(BaseModel):
     imdb: float
     directors: List[DirectorFlatResponse] = []
     actors: List[ActorFlatResponse] = []
-    certification: Optional[CertificationFlatResponse] = None # <-- ВИПРАВЛЕНО
+    certification: Optional[CertificationFlatResponse] = None
     model_config = ConfigDict(from_attributes=True)
 
 
 class MovieResponseNestedForActor(BaseModel):
-    # Використовується для movies всередині ActorResponse
     id: int
     uuid: UUID
     name: str
@@ -280,12 +274,11 @@ class MovieResponseNestedForActor(BaseModel):
     imdb: float
     directors: List[DirectorFlatResponse] = []
     genres: List[GenreFlatResponse] = []
-    certification: Optional[CertificationFlatResponse] = None # <-- ВИПРАВЛЕНО
+    certification: Optional[CertificationFlatResponse] = None
     model_config = ConfigDict(from_attributes=True)
 
 
 class MovieResponseForDirector(BaseModel):
-    # Використовується для movies всередині DirectorResponse
     id: int
     uuid: UUID
     name: str
@@ -334,18 +327,13 @@ class CommentBase(BaseModel):
     movie_id: int
     text: str
     created_at: datetime
-    # parent_comment_id: Optional[int] = None # <-- ЗВЕРНІТЬ УВАГУ: ЦЯ КОЛОНКА НЕ ІСНУЄ У БАЗІ ДАНИХ
-                                            # Якщо вона потрібна, створіть міграцію.
-                                            # Якщо ні, видаліть її з моделі SQLAlchemy і звідси.
-
+    parent_comment_id: Optional[int] = None
     model_config = ConfigDict(from_attributes=True)
 
 
 class CommentCreate(BaseModel):
     text: str = Field(..., min_length=1, max_length=1000)
-    # parent_comment_id: Optional[int] = None # <-- ЗВЕРНІТЬ УВАГУ: ЦЯ КОЛОНКА НЕ ІСНУЄ У БАЗІ ДАНИХ
-                                            # Якщо вона потрібна, створіть міграцію.
-                                            # Якщо ні, видаліть її з моделі SQLAlchemy і звідси.
+    parent_comment_id: Optional[int] = None
 
 
 class CommentResponse(CommentBase):

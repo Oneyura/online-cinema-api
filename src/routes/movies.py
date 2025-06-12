@@ -1028,69 +1028,92 @@ async def like_dislike_movie(
 
 
 # --- Write Comments on Movies ---
-@router.post("/{movie_id}/comments", response_model=CommentResponse)
+@router.post("/{movie_id}/comments", response_model=CommentResponse, status_code=status.HTTP_201_CREATED)
 async def write_comment(
         movie_id: int,
-        comment: CommentCreate,
+        comment_data: CommentCreate,
         current_user: UserModel = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ) -> CommentResponse:
     """
-    Write a comment on a movie, or reply to an existing comment.
+    Write a new comment for a movie.
+    Can also be used to reply to an existing comment by providing parent_comment_id.
     """
-    # Check if movie exists
-    movie_exists = await db.execute(select(MovieModel.id).filter_by(id=movie_id))
-    if not movie_exists.scalars().first():
+    movie = await db.execute(select(MovieModel).filter_by(id=movie_id))
+    movie_obj = movie.scalars().first()
+    if not movie_obj:
         raise HTTPException(status_code=404, detail="Movie not found")
 
-    # If parent_comment_id is provided, check if it exists and belongs to the same movie
-    if comment.parent_comment_id:
-        parent_comment = await db.execute(
-            select(CommentModel).filter_by(id=comment.parent_comment_id, movie_id=movie_id)
-        )
-        if not parent_comment.scalars().first():
-            raise HTTPException(status_code=400, detail="Parent comment not found or does not belong to this movie.")
+    parent_comment_obj = None
+    if comment_data.parent_comment_id is not None:
+        parent_query = select(CommentModel).filter_by(id=comment_data.parent_comment_id)
+        parent_comment_result = await db.execute(parent_query)
+        parent_comment_obj = parent_comment_result.scalars().first()
+
+        if not parent_comment_obj:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Parent comment with ID {comment_data.parent_comment_id} not found."
+            )
 
     new_comment = CommentModel(
         user_id=current_user.id,
         movie_id=movie_id,
-        text=comment.text,
-        parent_comment_id=comment.parent_comment_id
+        text=comment_data.text,
+        parent_comment_id=comment_data.parent_comment_id
     )
-    db.add(new_comment)
-    await db.commit()
-    await db.refresh(new_comment)
 
-    await db.refresh(new_comment, attribute_names=['user', 'parent_comment', 'replies'])
-    return new_comment
+    try:
+        db.add(new_comment)
+        await db.commit()
+        await db.refresh(new_comment)
+
+        loaded_comment_query = select(CommentModel).filter_by(id=new_comment.id).options(
+            selectinload(CommentModel.user), # Залишаємо user
+            selectinload(CommentModel.replies).selectinload(CommentModel.user)
+        )
+        loaded_comment_result = await db.execute(loaded_comment_query)
+        loaded_comment = loaded_comment_result.scalars().first()
+
+        return loaded_comment
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Could not create comment: {e}")
 
 
+# --- Get comments for a movie ---
 @router.get("/{movie_id}/comments", response_model=List[CommentResponseNested])
 async def get_movie_comments(
-        movie_id: int,
-        db: AsyncSession = Depends(get_db),
-        page: int = Query(1, ge=1),
-        limit: int = Query(10, ge=1, le=100)
+    movie_id: int,
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100)
 ) -> List[CommentResponseNested]:
     """
-    Get all top-level comments for a specific movie, with nested replies.
+    Get comments for a specific movie, including nested replies and user information.
+    Retrieves top-level comments and eagerly loads their first level of replies.
+    For deeper replies, additional selectinload chains would be needed,
+    or a different loading strategy for arbitrary depth (e.g., recursive CTE).
     """
-    query = (
-        select(CommentModel)
-        .filter(CommentModel.movie_id == movie_id)
-        .filter(CommentModel.parent_comment_id.is_(None))
+    movie = await db.execute(select(MovieModel).filter_by(id=movie_id))
+    if not movie.scalars().first():
+        raise HTTPException(status_code=404, detail="Movie not found")
+
+    query = select(CommentModel).filter(
+        CommentModel.movie_id == movie_id,
+        CommentModel.parent_comment_id == None
+    ).options(
+        selectinload(CommentModel.user),
+        selectinload(CommentModel.replies).selectinload(CommentModel.user),
+        selectinload(CommentModel.replies)
+            .selectinload(CommentModel.replies)
+            .selectinload(CommentModel.user),
     )
 
     query = query.order_by(CommentModel.created_at.desc())
 
     offset = (page - 1) * limit
     query = query.offset(offset).limit(limit)
-
-    # Eager load user for comments and recursively load replies
-    query = query.options(
-        selectinload(CommentModel.user),
-        selectinload(CommentModel.replies).selectinload(CommentModel.user).selectinload(CommentModel.replies)
-    )
 
     result = await db.execute(query)
     comments = result.scalars().unique().all()
