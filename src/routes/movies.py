@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from src.database.models import CommentModel
 from src.database.models import UserModel
 from src.config.dependencies import get_db
+from src.tasks import send_email_notification
 from src.database.models.movies import (
     MovieModel,
     GenreModel,
@@ -1013,6 +1014,7 @@ async def like_dislike_movie(
         db.add(existing_like)
         await db.commit()
         await db.refresh(existing_like)
+
         return existing_like
     else:
         # Create new like/dislike
@@ -1069,11 +1071,33 @@ async def write_comment(
         await db.refresh(new_comment)
 
         loaded_comment_query = select(CommentModel).filter_by(id=new_comment.id).options(
-            selectinload(CommentModel.user), # Залишаємо user
+            selectinload(CommentModel.user),
             selectinload(CommentModel.replies).selectinload(CommentModel.user)
         )
         loaded_comment_result = await db.execute(loaded_comment_query)
         loaded_comment = loaded_comment_result.scalars().first()
+
+        if loaded_comment.parent_comment_id:
+            parent_comment_query = select(CommentModel).filter_by(id=loaded_comment.parent_comment_id).options(
+                selectinload(CommentModel.user),
+                selectinload(CommentModel.movie)
+            )
+            parent_comment = (await db.execute(parent_comment_query)).scalars().first()
+
+            if parent_comment and parent_comment.user.id != current_user.id:
+                context_data = {
+                    "comment_author_email": parent_comment.user.email,
+                    "movie_name": parent_comment.movie.name if parent_comment.movie else "Unknown Movie",
+                    "original_comment_text": parent_comment.text,
+                    "replier_email": current_user.email,
+                    "reply_text": loaded_comment.text,
+                }
+                send_email_notification.delay(
+                    user_id=parent_comment.user.id,
+                    subject=f"Нова відповідь на ваш коментар до фільму '{parent_comment.movie.name}'",
+                    template_name="comment_reply_notification",
+                    context=context_data
+                )
 
         return loaded_comment
     except Exception as e:
