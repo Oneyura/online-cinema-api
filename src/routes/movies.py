@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from src.database.models import CommentModel
 from src.database.models import UserModel
 from src.config.dependencies import get_db
+from src.tasks import send_email_notification
 from src.database.models.movies import (
     MovieModel,
     GenreModel,
@@ -250,17 +251,18 @@ async def update_genre(
         moderator: UserModel = Depends(get_current_moderator)
 ) -> GenreResponse:
     """Update an existing genre (Moderator only)."""
-    genre = await db.execute(select(GenreModel).filter_by(id=genre_id).options(
+    genre_query = select(GenreModel).filter_by(id=genre_id).options(
         selectinload(GenreModel.movies).selectinload(MovieModel.genres),
         selectinload(GenreModel.movies).selectinload(MovieModel.directors),
         selectinload(GenreModel.movies).selectinload(MovieModel.actors),
         selectinload(GenreModel.movies).selectinload(MovieModel.certification)
-    ))
-    genre = genre.scalars().first()
+    )
+    genre_result = await db.execute(genre_query)
+    genre = genre_result.scalars().first()
+
     if not genre:
         raise HTTPException(status_code=404, detail="Genre not found")
 
-    # Check if new name conflicts with existing genre (excluding self)
     if genre_update.name and genre_update.name != genre.name:
         existing_genre = await db.execute(select(GenreModel).filter(
             (GenreModel.name == genre_update.name) & (GenreModel.id != genre_id)
@@ -272,7 +274,16 @@ async def update_genre(
     try:
         await db.commit()
         await db.refresh(genre)
-        return genre
+        # Re-fetch the genre with all relationships explicitly loaded for the response
+        loaded_genre_query = select(GenreModel).filter_by(id=genre.id).options(
+            selectinload(GenreModel.movies).selectinload(MovieModel.genres),
+            selectinload(GenreModel.movies).selectinload(MovieModel.directors),
+            selectinload(GenreModel.movies).selectinload(MovieModel.actors),
+            selectinload(GenreModel.movies).selectinload(MovieModel.certification)
+        )
+        loaded_genre_result = await db.execute(loaded_genre_query)
+        loaded_genre = loaded_genre_result.scalars().first()
+        return loaded_genre
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=400, detail=f"Could not update genre: {e}")
@@ -413,13 +424,14 @@ async def update_actor(
         moderator: UserModel = Depends(get_current_moderator)
 ) -> ActorResponse:
     """Update an existing actor (Moderator only)."""
-    actor = await db.execute(select(ActorModel).filter_by(id=actor_id).options(
+    actor_query = select(ActorModel).filter_by(id=actor_id).options(
         selectinload(ActorModel.movies).selectinload(MovieModel.genres),
         selectinload(ActorModel.movies).selectinload(MovieModel.directors),
         selectinload(ActorModel.movies).selectinload(MovieModel.actors),
         selectinload(ActorModel.movies).selectinload(MovieModel.certification)
-    ))
-    actor = actor.scalars().first()
+    )
+    actor_result = await db.execute(actor_query)
+    actor = actor_result.scalars().first()
     if not actor:
         raise HTTPException(status_code=404, detail="Actor not found")
 
@@ -434,7 +446,16 @@ async def update_actor(
     try:
         await db.commit()
         await db.refresh(actor)
-        return actor
+        # Re-fetch the actor with all relationships explicitly loaded for the response
+        loaded_actor_query = select(ActorModel).filter_by(id=actor.id).options(
+            selectinload(ActorModel.movies).selectinload(MovieModel.genres),
+            selectinload(ActorModel.movies).selectinload(MovieModel.directors),
+            selectinload(ActorModel.movies).selectinload(MovieModel.actors),
+            selectinload(ActorModel.movies).selectinload(MovieModel.certification)
+        )
+        loaded_actor_result = await db.execute(loaded_actor_query)
+        loaded_actor = loaded_actor_result.scalars().first()
+        return loaded_actor
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=400, detail=f"Could not update actor: {e}")
@@ -524,9 +545,9 @@ async def get_director(
     Get information about a specific director by ID, including a list of associated movies.
     """
     query = select(DirectorModel).filter_by(id=director_id).options(
-        selectinload(DirectorModel.movies).selectinload(MovieModel.genres),  # <--- Додано
-        selectinload(DirectorModel.movies).selectinload(MovieModel.directors),  # <--- Додано
-        selectinload(DirectorModel.movies).selectinload(MovieModel.actors),  # <--- Додано
+        selectinload(DirectorModel.movies).selectinload(MovieModel.genres),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.directors),
+        selectinload(DirectorModel.movies).selectinload(MovieModel.actors),
         selectinload(DirectorModel.movies).selectinload(MovieModel.certification)
     )
     result = await db.execute(query)
@@ -985,7 +1006,7 @@ async def delete_movie(
 async def like_dislike_movie(
         movie_id: int,
         is_liked: bool = Query(..., description="True for like, False for dislike"),
-        current_user: UserModel = Depends(get_current_user),  # Requires authentication
+        current_user: UserModel = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ) -> MovieLikeResponse:
     """
@@ -1013,6 +1034,7 @@ async def like_dislike_movie(
         db.add(existing_like)
         await db.commit()
         await db.refresh(existing_like)
+
         return existing_like
     else:
         # Create new like/dislike
@@ -1028,69 +1050,114 @@ async def like_dislike_movie(
 
 
 # --- Write Comments on Movies ---
-@router.post("/{movie_id}/comments", response_model=CommentResponse)
+@router.post("/{movie_id}/comments", response_model=CommentResponse, status_code=status.HTTP_201_CREATED)
 async def write_comment(
         movie_id: int,
-        comment: CommentCreate,
+        comment_data: CommentCreate,
         current_user: UserModel = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ) -> CommentResponse:
     """
-    Write a comment on a movie, or reply to an existing comment.
+    Write a new comment for a movie.
+    Can also be used to reply to an existing comment by providing parent_comment_id.
     """
-    # Check if movie exists
-    movie_exists = await db.execute(select(MovieModel.id).filter_by(id=movie_id))
-    if not movie_exists.scalars().first():
+    movie = await db.execute(select(MovieModel).filter_by(id=movie_id))
+    movie_obj = movie.scalars().first()
+    if not movie_obj:
         raise HTTPException(status_code=404, detail="Movie not found")
 
-    # If parent_comment_id is provided, check if it exists and belongs to the same movie
-    if comment.parent_comment_id:
-        parent_comment = await db.execute(
-            select(CommentModel).filter_by(id=comment.parent_comment_id, movie_id=movie_id)
-        )
-        if not parent_comment.scalars().first():
-            raise HTTPException(status_code=400, detail="Parent comment not found or does not belong to this movie.")
+    parent_comment_obj = None
+    if comment_data.parent_comment_id is not None:
+        parent_query = select(CommentModel).filter_by(id=comment_data.parent_comment_id)
+        parent_comment_result = await db.execute(parent_query)
+        parent_comment_obj = parent_comment_result.scalars().first()
+
+        if not parent_comment_obj:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Parent comment with ID {comment_data.parent_comment_id} not found."
+            )
 
     new_comment = CommentModel(
         user_id=current_user.id,
         movie_id=movie_id,
-        text=comment.text,
-        parent_comment_id=comment.parent_comment_id
+        text=comment_data.text,
+        parent_comment_id=comment_data.parent_comment_id
     )
-    db.add(new_comment)
-    await db.commit()
-    await db.refresh(new_comment)
 
-    await db.refresh(new_comment, attribute_names=['user', 'parent_comment', 'replies'])
-    return new_comment
+    try:
+        db.add(new_comment)
+        await db.commit()
+        await db.refresh(new_comment)
+
+        loaded_comment_query = select(CommentModel).filter_by(id=new_comment.id).options(
+            selectinload(CommentModel.user),
+            selectinload(CommentModel.replies).selectinload(CommentModel.user)
+        )
+        loaded_comment_result = await db.execute(loaded_comment_query)
+        loaded_comment = loaded_comment_result.scalars().first()
+
+        if loaded_comment.parent_comment_id:
+            parent_comment_query = select(CommentModel).filter_by(id=loaded_comment.parent_comment_id).options(
+                selectinload(CommentModel.user),
+                selectinload(CommentModel.movie)
+            )
+            parent_comment = (await db.execute(parent_comment_query)).scalars().first()
+
+            if parent_comment and parent_comment.user.id != current_user.id:
+                context_data = {
+                    "comment_author_email": parent_comment.user.email,
+                    "movie_name": parent_comment.movie.name if parent_comment.movie else "Unknown Movie",
+                    "original_comment_text": parent_comment.text,
+                    "replier_email": current_user.email,
+                    "reply_text": loaded_comment.text,
+                }
+                send_email_notification.delay(
+                    user_id=parent_comment.user.id,
+                    subject=f"Нова відповідь на ваш коментар до фільму '{parent_comment.movie.name}'",
+                    template_name="comment_reply_notification",
+                    context=context_data
+                )
+
+        return loaded_comment
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Could not create comment: {e}")
 
 
+# --- Get comments for a movie ---
 @router.get("/{movie_id}/comments", response_model=List[CommentResponseNested])
 async def get_movie_comments(
-        movie_id: int,
-        db: AsyncSession = Depends(get_db),
-        page: int = Query(1, ge=1),
-        limit: int = Query(10, ge=1, le=100)
+    movie_id: int,
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100)
 ) -> List[CommentResponseNested]:
     """
-    Get all top-level comments for a specific movie, with nested replies.
+    Get comments for a specific movie, including nested replies and user information.
+    Retrieves top-level comments and eagerly loads their first level of replies.
+    For deeper replies, additional selectinload chains would be needed,
+    or a different loading strategy for arbitrary depth (e.g., recursive CTE).
     """
-    query = (
-        select(CommentModel)
-        .filter(CommentModel.movie_id == movie_id)
-        .filter(CommentModel.parent_comment_id.is_(None))
+    movie = await db.execute(select(MovieModel).filter_by(id=movie_id))
+    if not movie.scalars().first():
+        raise HTTPException(status_code=404, detail="Movie not found")
+
+    query = select(CommentModel).filter(
+        CommentModel.movie_id == movie_id,
+        CommentModel.parent_comment_id == None
+    ).options(
+        selectinload(CommentModel.user),
+        selectinload(CommentModel.replies).selectinload(CommentModel.user),
+        selectinload(CommentModel.replies)
+            .selectinload(CommentModel.replies)
+            .selectinload(CommentModel.user),
     )
 
     query = query.order_by(CommentModel.created_at.desc())
 
     offset = (page - 1) * limit
     query = query.offset(offset).limit(limit)
-
-    # Eager load user for comments and recursively load replies
-    query = query.options(
-        selectinload(CommentModel.user),
-        selectinload(CommentModel.replies).selectinload(CommentModel.user).selectinload(CommentModel.replies)
-    )
 
     result = await db.execute(query)
     comments = result.scalars().unique().all()

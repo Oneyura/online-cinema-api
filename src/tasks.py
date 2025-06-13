@@ -1,6 +1,7 @@
 import asyncio
 import os
 from datetime import datetime, timezone
+from typing import Optional
 
 from celery import Celery  # type: ignore
 from celery.schedules import crontab
@@ -285,7 +286,7 @@ def send_password_reset_complete_email(user_id: int) -> str:
 
 
 @celery.task
-def send_email_notification(user_id: int, subject: str, template_name: str) -> str:
+def send_email_notification(user_id: int, subject: str, template_name: str, context: Optional[dict] = None) -> str:
     """
     Send a generic email using a given template and subject.
     Used e.g. for payment success notifications.
@@ -302,7 +303,10 @@ def send_email_notification(user_id: int, subject: str, template_name: str) -> s
                 return f"User {user_id} not found"
 
             email_sender = get_email_sender()
-            context = {"email": user.email}
+
+            final_context = context if context is not None else {}
+            final_context["email"] = user.email
+
             await email_sender.send_custom_template_email(
                 email=user.email,
                 subject=subject,
