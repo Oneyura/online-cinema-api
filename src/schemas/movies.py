@@ -8,7 +8,6 @@ from pydantic import BaseModel, Field, ConfigDict, condecimal
 from src.schemas.auth import UserPublicResponseSchema
 
 
-# --- Base Schemas (often used for input or simple output) ---
 class GenreBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, example="Action")
     model_config = ConfigDict(from_attributes=True)
@@ -69,8 +68,6 @@ class CertificationCreateResponse(BaseModel):
     name: str = Field(..., description="Certification name")
     model_config = ConfigDict(from_attributes=True)
 
-
-# --- Movie Schemas ---
 
 class MovieCreate(BaseModel):
     name: str = Field(
@@ -154,7 +151,6 @@ class MovieCreate(BaseModel):
 
 
 class MovieUpdate(MovieCreate):
-    # UUID should not be updated.
     name: Optional[str] = None
     year: Optional[int] = None
     time: Optional[int] = None
@@ -170,7 +166,6 @@ class MovieUpdate(MovieCreate):
     actor_ids: Optional[List[int]] = None
 
 
-# --- Flat Response Schemas for nested objects within MovieCreateResponse and MovieResponse ---
 class DirectorFlatResponse(BaseModel):
     id: int
     name: str
@@ -195,7 +190,6 @@ class CertificationFlatResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- Movie Response for POST/PUT (uses flat nested schemas) ---
 class MovieCreateResponse(BaseModel):
     id: int
     uuid: UUID
@@ -216,7 +210,6 @@ class MovieCreateResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- Movie Response for detailed GET requests (uses flat nested schemas) ---
 class MovieResponse(BaseModel):
     id: int = Field(..., description="The unique ID of the movie")
     uuid: UUID
@@ -233,7 +226,6 @@ class MovieResponse(BaseModel):
     genres: List[GenreFlatResponse] = []
     directors: List[DirectorFlatResponse] = []
     actors: List[ActorFlatResponse] = []
-    # Додано для повноти, якщо фільм має відгуки, оцінки, лайки
     movie_likes: List["MovieLikeResponse"] = []
     movie_ratings: List["MovieRatingResponse"] = []
     comments: List["CommentResponse"] = []
@@ -241,7 +233,6 @@ class MovieResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- Schemas for lists of movies, or nested within Directors/Actors/Genres/Certifications ---
 class MovieResponseNested(BaseModel):
     id: int
     uuid: UUID
@@ -314,13 +305,11 @@ class CertificationResponse(CertificationBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-# DirectorUpdate schema (already correct from previous discussion)
 class DirectorUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100, description="New name for the director. Must be unique if provided.")
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- Comment Schemas ---
 class CommentBase(BaseModel):
     id: int
     user_id: int
@@ -338,17 +327,14 @@ class CommentCreate(BaseModel):
 
 class CommentResponse(CommentBase):
     user: UserPublicResponseSchema
-    # Self-referencing list for nested comments
     replies: Optional[List["CommentResponse"]] = None
 
 
 class CommentResponseNested(CommentBase):
     user: UserPublicResponseSchema
-    # Self-referencing list for nested comments
     replies: Optional[List["CommentResponseNested"]] = None
 
 
-# --- Like/Rating/Favorite Schemas ---
 class MovieLikeCreate(BaseModel):
     is_liked: bool = Field(
         ...,
@@ -400,7 +386,6 @@ class FavoriteMovieResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- Rebuild Pydantic models for forward references ---
 MovieResponseNested.model_rebuild()
 MovieResponseNestedForGenres.model_rebuild()
 MovieResponseNestedForActor.model_rebuild()
