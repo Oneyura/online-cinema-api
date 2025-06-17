@@ -1,4 +1,3 @@
-# routes/movie.py
 import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -55,7 +54,6 @@ from src.config.dependencies import get_current_user, get_current_moderator
 router = APIRouter(prefix="/movies")
 
 
-# --- Helper function for applying filters and sorting ---
 async def apply_movie_filters_and_sort(
         query,
         db: AsyncSession,
@@ -71,7 +69,6 @@ async def apply_movie_filters_and_sort(
 ) -> select:
     """Applies common filters and sorting to a movie query."""
 
-    # Search by title, description, actor, or director
     if search:
         query = query.filter(
             or_(
@@ -117,8 +114,6 @@ async def apply_movie_filters_and_sort(
         else:
             query = query.order_by(sort_column.asc())
     else:
-        # Apply default order_by from model if no specific sort_by is provided
-        # Assuming MovieModel.default_order_by() returns a valid SQLAlchemy order_by clause
         default_order = getattr(MovieModel, 'default_order_by', lambda: None)()
         if default_order is not None:
             if isinstance(default_order, tuple):
@@ -130,7 +125,6 @@ async def apply_movie_filters_and_sort(
     return query
 
 
-# --- Browse Movie Catalog (Pagination, Filter, Sort, Search) ---
 @router.get("/", response_model=List[MovieResponseNested])
 async def browse_movies(
         db: AsyncSession = Depends(get_db),
@@ -159,7 +153,6 @@ async def browse_movies(
         selectinload(MovieModel.comments),
     )
 
-    # Apply filters and sorting
     query = await apply_movie_filters_and_sort(
         query, db, search, year, imdb_min, imdb_max, genre_name, director_name, actor_name, sort_by, sort_order
     )
@@ -173,9 +166,6 @@ async def browse_movies(
     return movies
 
 
-# --- Moved all specific routes BEFORE {movie_id} routes ---
-
-# --- View Genres with Movie Count and Filter by Genre ---
 @router.get("/genres", response_model=List[GenreResponse])
 async def get_genres_with_counts(db: AsyncSession = Depends(get_db)) -> List[GenreResponse]:
     """
@@ -188,7 +178,7 @@ async def get_genres_with_counts(db: AsyncSession = Depends(get_db)) -> List[Gen
         selectinload(GenreModel.movies).selectinload(MovieModel.certification)
     )
     result = await db.execute(genres_query)
-    genres = result.scalars().unique().all() # Added .unique() for distinct genres
+    genres = result.scalars().unique().all()
     return genres
 
 
@@ -274,7 +264,6 @@ async def update_genre(
     try:
         await db.commit()
         await db.refresh(genre)
-        # Re-fetch the genre with all relationships explicitly loaded for the response
         loaded_genre_query = select(GenreModel).filter_by(id=genre.id).options(
             selectinload(GenreModel.movies).selectinload(MovieModel.genres),
             selectinload(GenreModel.movies).selectinload(MovieModel.directors),
@@ -341,7 +330,6 @@ async def get_movies_by_genre(
     return movies
 
 
-# --- CRUD for Actors (Moderator only) ---
 @router.post("/actors", response_model=ActorCreate, status_code=status.HTTP_201_CREATED)
 async def create_actor(
         actor: ActorCreate,
@@ -446,7 +434,6 @@ async def update_actor(
     try:
         await db.commit()
         await db.refresh(actor)
-        # Re-fetch the actor with all relationships explicitly loaded for the response
         loaded_actor_query = select(ActorModel).filter_by(id=actor.id).options(
             selectinload(ActorModel.movies).selectinload(MovieModel.genres),
             selectinload(ActorModel.movies).selectinload(MovieModel.directors),
@@ -481,7 +468,6 @@ async def delete_actor(
         raise HTTPException(status_code=500, detail=f"Could not delete actor: {e}")
 
 
-# --- CRUD for Directors (Moderator only) ---
 @router.post("/directors", response_model=DirectorCreateResponse, status_code=status.HTTP_201_CREATED)
 async def create_director(
         director: DirectorCreate,
@@ -613,7 +599,6 @@ async def delete_director(
     return
 
 
-# --- CRUD for Certifications (Moderator only) ---
 @router.post("/certifications", response_model=CertificationCreate, status_code=status.HTTP_201_CREATED)
 async def create_certification(
         certification: CertificationCreate,
@@ -668,7 +653,6 @@ async def get_all_certifications(
     return certifications
 
 
-# --- ДОДАНО: GET сертифікат за ID ---
 @router.get("/certifications/{cert_id}", response_model=CertificationResponse)
 async def get_certification(
         cert_id: int,
@@ -748,7 +732,6 @@ async def delete_certification(
         raise HTTPException(status_code=500, detail=f"Could not delete certification: {e}")
 
 
-# --- User-specific favorite movies, placed before general {movie_id} routes ---
 @router.get("/favorites", response_model=List[MovieResponseNested])
 async def get_favorite_movies(
         current_user: UserModel = Depends(get_current_user),
@@ -792,9 +775,6 @@ async def get_favorite_movies(
     return movies
 
 
-# --- CRUD for Movies (Moderator only) - Placed after all specific non-{movie_id} routes ---
-
-# Create Movie
 @router.post("/", response_model=MovieCreateResponse, status_code=status.HTTP_201_CREATED)
 async def create_movie(
         movie_data: MovieCreate,
@@ -873,7 +853,6 @@ async def create_movie(
         print(f"Error creating movie: {e}")
         raise HTTPException(status_code=400, detail=f"Could not create movie: {e}")
 
-# --- View Detailed Movie Description (General movie_id route) ---
 @router.get("/{movie_id}", response_model=MovieResponse)
 async def get_movie_details(
         movie_id: int,
@@ -899,15 +878,12 @@ async def get_movie_details(
     return movie
 
 
-# --- Routes dependent on {movie_id} ---
-
-# Update Movie
 @router.put("/{movie_id}", response_model=MovieResponse)
 async def update_movie(
         movie_id: int,
         movie_update: MovieUpdate,
         db: AsyncSession = Depends(get_db),
-        moderator: UserModel = Depends(get_current_moderator)  # Requires moderator role
+        moderator: UserModel = Depends(get_current_moderator)
 ) -> MovieUpdate:
     """
     Update an existing movie by ID (Moderator only).
@@ -968,7 +944,6 @@ async def update_movie(
         raise HTTPException(status_code=400, detail=f"Could not update movie: {e}")
 
 
-# Delete Movie (Moderator only, with purchase check)
 @router.delete("/{movie_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_movie(
         movie_id: int,
@@ -1001,7 +976,6 @@ async def delete_movie(
     return
 
 
-# --- Like/Dislike Movies ---
 @router.post("/{movie_id}/like", response_model=MovieLikeResponse)
 async def like_dislike_movie(
         movie_id: int,
@@ -1016,7 +990,6 @@ async def like_dislike_movie(
     if not movie.scalars().first():
         raise HTTPException(status_code=404, detail="Movie not found")
 
-    # Check for existing like/dislike
     existing_like = await db.execute(
             select(MovieLikeModel).filter_by(user_id=current_user.id, movie_id=movie_id)
     )
@@ -1028,7 +1001,6 @@ async def like_dislike_movie(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Movie already {'liked' if is_liked else 'disliked'} by this user."
             )
-        # Update existing like/dislike
         existing_like.is_liked = is_liked
         existing_like.created_at = datetime.datetime.now()
         db.add(existing_like)
@@ -1049,7 +1021,6 @@ async def like_dislike_movie(
         return new_like
 
 
-# --- Write Comments on Movies ---
 @router.post("/{movie_id}/comments", response_model=CommentResponse, status_code=status.HTTP_201_CREATED)
 async def write_comment(
         movie_id: int,
@@ -1125,7 +1096,6 @@ async def write_comment(
         raise HTTPException(status_code=500, detail=f"Could not create comment: {e}")
 
 
-# --- Get comments for a movie ---
 @router.get("/{movie_id}/comments", response_model=List[CommentResponseNested])
 async def get_movie_comments(
     movie_id: int,
@@ -1136,8 +1106,6 @@ async def get_movie_comments(
     """
     Get comments for a specific movie, including nested replies and user information.
     Retrieves top-level comments and eagerly loads their first level of replies.
-    For deeper replies, additional selectinload chains would be needed,
-    or a different loading strategy for arbitrary depth (e.g., recursive CTE).
     """
     movie = await db.execute(select(MovieModel).filter_by(id=movie_id))
     if not movie.scalars().first():
@@ -1164,7 +1132,6 @@ async def get_movie_comments(
     return comments
 
 
-# --- Add/Remove Movies from Favorites ---
 @router.post("/{movie_id}/favorite", response_model=FavoriteMovieResponse)
 async def add_movie_to_favorites(
         movie_id: int,
@@ -1212,7 +1179,6 @@ async def remove_movie_from_favorites(
     await db.commit()
 
 
-# --- Rate Movies ---
 @router.post("/{movie_id}/rate", response_model=MovieRatingResponse)
 async def rate_movie(
         movie_id: int,

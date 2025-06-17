@@ -4,7 +4,6 @@ from sqlalchemy import (
     String,
     Float,
     Text,
-    DECIMAL,
     UniqueConstraint,
     ForeignKey,
     Table,
